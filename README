@@ -21,7 +21,7 @@ NCAVE
   the input dumps must be chunked by layers.
 
 NCCAT
-  Concatenates variables in NetCDF files by arbitrary dimensions.
+  Concatenates variables in NetCDF files over arbitrary dimensions.
 
 LICENSE
 

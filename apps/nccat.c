@@ -7,7 +7,7 @@
  * Authors:     Pavel Sakov
  *              Bureau of Meteorology
  *
- * Description: NCCAT concatenates variables in NetCDF files by arbitrary
+ * Description: NCCAT concatenates variables in NetCDF files over arbitrary
  *              dimensions.
  *
  * Revisions:   
