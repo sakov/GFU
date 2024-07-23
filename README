@@ -1,0 +1,43 @@
+GFU Geophysical utilities
+
+DESCRIPTION
+
+GFU contains several utilities developed in the course of the author's work with
+large geophysical models.
+
+REGRID_LL
+  Utility for interpolating geophysical layered fields onto a different
+  horizontal grid. It targets geographic grids with nodes defined in lat/lon and
+  provides robust interpolation on sphere, including topologically complicated
+  cases (e.g. tripolar grids, grids with discontinuities in node coordinates
+  etc.). The source and destination horizontal grids can be either structured
+  ([j][i]) or unstructured ([i]). The vertical layers are interpolated
+  sequentially.
+
+NCAVE
+  Utility for averaging very large ensemble dumps. Compared to NCEA/NCRA it (1)
+  conserves memory by averaging on layer-by-layer basis, and (2) when run on
+  multiple CPUs processes layers in parallel. Note that for optimal efficiency
+  the input dumps must be chunked by layers.
+
+nccat: concatenates variables in NetCDF files by arbitrary dimensions.
+
+LICENSE
+
+GFU is a public software. See LICENSE for details.
+
+COMPILING
+
+GFU is developed for GNU/Linux platform. Edit Makefile if necessary.
+
+DEPENDENCIES
+  all: libnetcdf
+  regrid_ll: libnn (provided by nn-c)
+  ncave: MPI (optional)
+
+CONTACT
+
+pavel.sakov@gmail.com
+
+Have fun,
+Pavel Sakov
