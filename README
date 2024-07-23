@@ -20,7 +20,7 @@ NCAVE
   multiple CPUs processes layers in parallel. Note that for optimal efficiency
   the input dumps must be chunked by layers.
 
-GFU
+NCCAT
   Concatenates variables in NetCDF files by arbitrary dimensions.
 
 LICENSE
