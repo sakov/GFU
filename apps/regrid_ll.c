@@ -57,14 +57,14 @@
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <x coord> <y coord> [<numlayers>] -go <dst grid> <x coord> <y coord> [<numlayers>] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src> -- source file\n");
     printf("    -o <dst> -- destination file (clobbed)\n");
     printf("    -v <varname> -- variable to interpolate\n");
-    printf("    -gi <src grid> <x coord> <y coord> [<numlayers>] -- source grid\n");
-    printf("    -go <dst grid> <x coord> <y coord> [<numlayers>] -- destination grid\n");
+    printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
+    printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
     printf("    -n -- flag: do not use deepest valid values for filling the rest of\n");
     printf("          the column\n");
     printf("    -s -- flag: do not use the first and last columns of the source field\n");
