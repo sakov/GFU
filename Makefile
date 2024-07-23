@@ -57,7 +57,10 @@ common/ncutils.h\
 common/version.h\
 common/utils.h
 
-default: $(PROGRAMS)
+default: bin $(PROGRAMS)
+
+bin:
+	mkdir -p bin
 
 bin/regrid_ll: Makefile $(SRC_REGRID_LL) $(HDR_REGRID_LL)
 	$(CC) $(CFLAGS) $(INCS) -o $@ $(SRC_REGRID_LL) $(LIBNN) $(LIBS)
