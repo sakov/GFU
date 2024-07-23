@@ -9,8 +9,6 @@ LIBNC = -lnetcdf -lhdf5 -lhdf5_hl
 # on Ubuntu the above may look as follows:
 # LIBNC = -lnetcdf -lhdf5_serial -lhdf5_serial_hl
 LIBS = $(LIBNC) -lm
-# on Ubuntu the above may look as follows:
-# LIB_NC = -lnetcdf -lhdf5_serial -lhdf5_serial_hl
 LIBNN = -L $(HOME)/local/lib -lnn
 
 # do not edit below
