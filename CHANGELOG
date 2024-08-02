@@ -1,3 +1,10 @@
+v0.01
+  PS 20240802
+  -- regrid_ll: allow only one input point in tiny circle around the south pole
+     for the south projection and around the north pole for the north
+     projection; otherwise delaunay tringulation related stuff has numeric
+     problems. (This should not ffect results.)
+  -- regrid_ll: fixed mask setup for the destination grid.
 v0.00
   PS 20240723
   -- Initial submission

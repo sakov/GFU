@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.00"
+#define PROGRAM_VERSION "0.01"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -52,6 +52,8 @@
 #define GRIDTYPE_CURV 1
 #define GRIDTYPE_RECT 2
 #define GRIDTYPE_VECT 3
+
+#define POLAR_EPS 1.0e-10
 
 /**
  */
@@ -65,7 +67,7 @@ static void usage(int status)
     printf("    -v <varname> -- variable to interpolate\n");
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
-    printf("    -n -- flag: do not use deepest valid values for filling the rest of\n");
+    printf("    -n -- flag: do not use deepest valid value for filling the rest of\n");
     printf("          the column\n");
     printf("    -s -- flag: do not use the first and last columns of the source field\n");
     printf("          (e.g. with NEMO on ORCA grids)\n");
@@ -440,23 +442,23 @@ int main(int argc, char* argv[])
                 ncu_readvarfloat(ncid, varid_x, nij_dst, xdst);
                 ncu_readvarfloat(ncid, varid_y, nij_dst, ydst);
             }
-            if (nkname_dst != NULL) {
-                int varid;
+        }
+        if (nkname_dst != NULL) {
+            int varid;
 
-                ncw_inq_varid(ncid, nkname_dst, &varid);
-                if (nj_dst > 0) {
-                    size_t dimlen[2] = { nj_dst, ni_dst };
+            ncw_inq_varid(ncid, nkname_dst, &varid);
+            if (nj_dst > 0) {
+                size_t dimlen[2] = { nj_dst, ni_dst };
+                
+                ncw_check_vardims(ncid, varid, 2, dimlen);
+            } else if (nj_dst == 0) {
+                size_t dimlen = ni_dst;
 
-                    ncw_check_vardims(ncid, varid, 2, dimlen);
-                } else if (nj_dst == 0) {
-                    size_t dimlen = ni_dst;
-
-                    ncw_check_vardims(ncid, varid, 1, &dimlen);
-                } else
-                    quit("programming error");
-                nksrc = malloc(nij_dst * sizeof(int));
-                ncw_get_var_int(ncid, varid, nksrc);
-            }
+                ncw_check_vardims(ncid, varid, 1, &dimlen);
+            } else
+                quit("programming error");
+            nkdst = malloc(nij_dst * sizeof(int));
+            ncw_get_var_int(ncid, varid, nkdst);
         }
         ncw_close(ncid);
     }
@@ -586,7 +588,8 @@ int main(int argc, char* argv[])
     points_south = malloc(nij_src * sizeof(point));
     points_north = malloc(nij_src * sizeof(point));
     for (k = 0; k < nk; ++k) {
-        int npoint = 0;
+        int npoint = 0, npoint_south = 0,  npoint_north = 0;
+        int have_polar_south = 0, have_polar_north = 0;
 
         /*
          * stats
@@ -597,7 +600,6 @@ int main(int argc, char* argv[])
         ncu_readfield(fname_src, varname, k, ni_src, nj_src, nk, vsrc);
         for (i = 0; i < nij_src; ++i) {
             point* p;
-            int ii = i;
 
             /*
              * do not use the first and last columns
@@ -607,19 +609,37 @@ int main(int argc, char* argv[])
 
             if (nksrc != NULL && k >= nksrc[i])
                 continue;
-            if (!isfinite(vsrc[ii]))
+            if (!isfinite(vsrc[i]))
                 continue;
 
-            p = &points_south[npoint];
-            p->x = xsrc_south[i];
-            p->y = ysrc_south[i];
-            p->z = vsrc[ii];
-
-            p = &points_north[npoint];
-            p->x = xsrc_north[i];
-            p->y = ysrc_north[i];
-            p->z = vsrc[ii];
-
+            if (isfinite(xsrc_south[i]) && isfinite(ysrc_south[i])) {
+                if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
+                    if (have_polar_south)
+                        goto skip_south;
+                    else
+                        have_polar_south = 1;
+                }
+                p = &points_south[npoint];
+                p->x = xsrc_south[i];
+                p->y = ysrc_south[i];
+                p->z = vsrc[i];
+                npoint_south++;
+            }
+        skip_south:
+            if (isfinite(xsrc_north[i]) && isfinite(ysrc_north[i])) {
+                if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
+                    if (have_polar_north)
+                        goto skip_north;
+                    else
+                        have_polar_north = 1;
+                }
+                p = &points_north[npoint];
+                p->x = xsrc_north[i];
+                p->y = ysrc_north[i];
+                p->z = vsrc[i];
+                npoint_north++;
+            }
+        skip_north:
             npoint++;
         }
 
@@ -628,8 +648,8 @@ int main(int argc, char* argv[])
             goto finalise_level;
 
         {
-            delaunay* d_south = delaunay_build(npoint, points_south, 0, NULL, 0, NULL);
-            delaunay* d_north = delaunay_build(npoint, points_north, 0, NULL, 0, NULL);
+            delaunay* d_south = delaunay_build(npoint_south, points_south, 0, NULL, 0, NULL);
+            delaunay* d_north = delaunay_build(npoint_north, points_north, 0, NULL, 0, NULL);
             void* interp_south = lpi_build(d_south);
             void* interp_north = lpi_build(d_north);
 
@@ -669,13 +689,14 @@ int main(int argc, char* argv[])
             delaunay_destroy(d_north);
         }
 
-      finalise_level:
+    finalise_level:
 
         ncu_writefield(fname_dst_tmp, varname, k, ni_dst, nj_dst, nk, vdst);
         if (verbose == 1) {
             printf("%c", (k + 1) % 10 ? '.' : '|');
             fflush(stdout);
         } else if (verbose > 1) {
+            
             printf("\n    k = %d: %d in, %d out", k, npoint, npoint_dst);
             if (npoint_filled > 0)
                 printf(" (%d filled)", npoint_filled);
