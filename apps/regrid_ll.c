@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.01"
+#define PROGRAM_VERSION "0.02"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -67,8 +67,8 @@ static void usage(int status)
     printf("    -v <varname> -- variable to interpolate\n");
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
-    printf("    -n -- flag: do not use deepest valid value for filling the rest of\n");
-    printf("          the column\n");
+    printf("    -m -- flag: use NaN for filling (default = use zero)\n");
+    printf("    -n -- flag: use the deepest valid value for filling the rest of the column\n");
     printf("    -s -- flag: do not use the first and last columns of the source field\n");
     printf("          (e.g. with NEMO on ORCA grids)\n");
     printf("    -V <level> -- set verbosity to 0, 1, or 2 (default = 1)\n");
@@ -78,7 +78,7 @@ static void usage(int status)
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* verbose, int* zerofill, int* skipfirstlast)
+        static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* verbose, int* propagatedown, int* nanfill, int* skipfirstlast)
 {
     int i;
 
@@ -157,8 +157,11 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
                 quit("no verbosity level found after \"-V\"");
             *verbose = atoi(argv[i]);
             i++;
+        } else if (strcmp(&argv[i][1], "m") == 0) {
+            *nanfill = 1;
+            i++;
         } else if (strcmp(&argv[i][1], "n") == 0) {
-            *zerofill = 1;
+            *propagatedown = 1;
             i++;
         } else if (strcmp(&argv[i][1], "s") == 0) {
             *skipfirstlast = 1;
@@ -200,7 +203,8 @@ int main(int argc, char* argv[])
     char* nkname_dst = NULL;
     int verbose = VERBOSE_DEF;
     int gridtype = GRIDTYPE_UNDEF;
-    int zerofill = 0;
+    int propagatedown = 0;
+    int nanfill = 0;
     int skipfirstlast = 0;
 
     int npoint_filled_tot = 0;
@@ -251,7 +255,7 @@ int main(int argc, char* argv[])
 
     int i, k;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &verbose, &zerofill, &skipfirstlast);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &verbose, &propagatedown, &nanfill, &skipfirstlast);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -576,7 +580,7 @@ int main(int argc, char* argv[])
 
     vsrc = malloc(nij_src * sizeof(float));
     vdst = calloc(nij_dst, sizeof(float));
-    if (nk > 1 && !zerofill) {
+    if (nk > 1 && propagatedown) {
         vdst_last = malloc(nij_dst * sizeof(float));
         for (i = 0; i < nij_dst; ++i)
             vdst_last[i] = NAN;
@@ -643,7 +647,11 @@ int main(int argc, char* argv[])
             npoint++;
         }
 
-        memset(vdst, 0, nij_dst * sizeof(float));
+        if (!nanfill)
+            memset(vdst, 0, nij_dst * sizeof(float));
+        else
+            for (i = 0; i < nij_dst; ++i)
+                vdst[i] = NAN;
         if (npoint == 0)
             goto finalise_level;
 

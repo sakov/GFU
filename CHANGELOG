@@ -1,3 +1,6 @@
+v0.03
+  PS 20240814
+  -- regrid_ll: added option "-m" for NaN fill (default = zero fill).
 v0.02
   PS 20240814
   -- ncu_readvarfloat(): fixed mismatch between allocation and deallocation
