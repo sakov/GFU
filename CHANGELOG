@@ -1,3 +1,10 @@
+v0.05
+  PS 20240820
+  -- regrid_ll: added option of setting the deflation level.
+v0.04
+  PS 20240814
+   -- Modified ncw_def_var_as() to call ncw_copy_atts() rather than just copying
+      non-special atttributes in a cycle.
 v0.03
   PS 20240814
   -- regrid_ll: added option "-m" for NaN fill (default = zero fill).

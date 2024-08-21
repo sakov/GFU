@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.02"
+#define PROGRAM_VERSION "0.03"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -59,7 +59,7 @@
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-d <level>] [-m] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src> -- source file\n");
@@ -67,6 +67,7 @@ static void usage(int status)
     printf("    -v <varname> -- variable to interpolate\n");
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
+    printf("    -d <level> -- deflation level\n");
     printf("    -m -- flag: use NaN for filling (default = use zero)\n");
     printf("    -n -- flag: use the deepest valid value for filling the rest of the column\n");
     printf("    -s -- flag: do not use the first and last columns of the source field\n");
@@ -78,7 +79,7 @@ static void usage(int status)
 
 /**
  */
-        static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* verbose, int* propagatedown, int* nanfill, int* skipfirstlast)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* verbose)
 {
     int i;
 
@@ -151,6 +152,12 @@ static void usage(int status)
                 *nkname_dst = argv[i];
                 i++;
             }
+        } else if (strcmp(&argv[i][1], "d") == 0) {
+            i++;
+            if (i == argc || argv[i][0] == '-')
+                quit("no deflation level found after \"-d\"");
+            *deflate = atoi(argv[i]);
+            i++;
         } else if (strcmp(&argv[i][1], "V") == 0) {
             i++;
             if (i == argc || argv[i][0] == '-')
@@ -201,11 +208,13 @@ int main(int argc, char* argv[])
     char* xname_dst = NULL;
     char* yname_dst = NULL;
     char* nkname_dst = NULL;
-    int verbose = VERBOSE_DEF;
-    int gridtype = GRIDTYPE_UNDEF;
+    int deflate = 0;
     int propagatedown = 0;
     int nanfill = 0;
     int skipfirstlast = 0;
+    int verbose = VERBOSE_DEF;
+
+    int gridtype = GRIDTYPE_UNDEF;
 
     int npoint_filled_tot = 0;
 
@@ -255,7 +264,7 @@ int main(int argc, char* argv[])
 
     int i, k;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &verbose, &propagatedown, &nanfill, &skipfirstlast);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &deflate, &propagatedown, &nanfill, &skipfirstlast, &verbose);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -316,7 +325,8 @@ int main(int argc, char* argv[])
         if (ndims == 2) {
             gridtype = GRIDTYPE_CURV;
             ncw_inq_vardims(ncid, varid_x, 2, NULL, dimlen);
-            if (dimlen[0] != dimlen_src[ndims_src - 2] || dimlen[1] != dimlen_src[ndims_src - 1])
+            if (dimlen[0] != dimlen_src[ndims_src - 2]
+                || dimlen[1] != dimlen_src[ndims_src - 1])
                 quit("%s,%s: dimensions of variable \"%s\" do not match grid dimensions of coordinate \"%s\"", fname_src, grdname_src, varname, xname_src);
 
             ni_src = dimlen[1];
@@ -350,7 +360,8 @@ int main(int argc, char* argv[])
                 for (ii = 0, j = 0; j < nj_src; ++j)
                     for (i = 0; i < ni_src; ++i, ++ii)
                         ysrc[ii] = ysrc[j * ni_src];
-            } else if (dimlen[0] == dimlen_src[ndims_src - 1] && dimlen[1] == dimlen_src[ndims_src - 1]) {
+            } else if (dimlen[0] == dimlen_src[ndims_src - 1]
+                       && dimlen[1] == dimlen_src[ndims_src - 1]) {
                 gridtype = GRIDTYPE_VECT;
                 ni_src = dimlen[0];
                 nj_src = 0;
@@ -453,7 +464,7 @@ int main(int argc, char* argv[])
             ncw_inq_varid(ncid, nkname_dst, &varid);
             if (nj_dst > 0) {
                 size_t dimlen[2] = { nj_dst, ni_dst };
-                
+
                 ncw_check_vardims(ncid, varid, 2, dimlen);
             } else if (nj_dst == 0) {
                 size_t dimlen = ni_dst;
@@ -474,6 +485,25 @@ int main(int argc, char* argv[])
      * copy global attributes to destination
      */
     ncw_copy_atts(ncid_src, NC_GLOBAL, ncid_dst, NC_GLOBAL);
+    /*
+     * copy command line and wdir to dst
+     */
+    {
+        char* cmd = get_command(argc, argv);
+        char attname[NC_MAX_NAME];
+        char cwd[MAXSTRLEN];
+
+        snprintf(attname, NC_MAX_NAME, "%s: command", PROGRAM_NAME);
+        ncw_put_att_text(ncid_dst, NC_GLOBAL, attname, cmd);
+        free(cmd);
+        if (getcwd(cwd, MAXSTRLEN) != NULL) {
+            snprintf(attname, NC_MAX_NAME, "%s: wdir", PROGRAM_NAME);
+            ncw_put_att_text(ncid_dst, NC_GLOBAL, attname, cwd);
+        }
+    }
+    /*
+     * define dimensions
+     */
     for (i = 0; i < ndims_src; ++i) {
         char dimname[NC_MAX_NAME];
 
@@ -496,24 +526,14 @@ int main(int argc, char* argv[])
             printf("%zu%s", dimlen_dst[i], i < ndims_src - 1 ? " x " : "\n");
         fflush(stdout);
     }
+    /*
+     * define the variable
+     */
     ncw_def_var(ncid_dst, varname, nctype, ndims_src, dimids_dst, &varid_dst);
     ncw_copy_atts(ncid_src, varid_src, ncid_dst, varid_dst);
-    /*
-     * copy command line and wdir to dst
-     */
-    {
-        char* cmd = get_command(argc, argv);
-        char attname[NC_MAX_NAME];
-        char cwd[MAXSTRLEN];
 
-        snprintf(attname, NC_MAX_NAME, "%s: command", PROGRAM_NAME);
-        ncw_put_att_text(ncid_dst, NC_GLOBAL, attname, cmd);
-        free(cmd);
-        if (getcwd(cwd, MAXSTRLEN) != NULL) {
-            snprintf(attname, NC_MAX_NAME, "%s: wdir", PROGRAM_NAME);
-            ncw_put_att_text(ncid_dst, NC_GLOBAL, attname, cwd);
-        }
-    }
+    if (deflate > 0)
+        ncw_def_deflate(ncid_dst, 0, 1, deflate);
 
     ncw_close(ncid_dst);
     ncw_close(ncid_src);
@@ -592,7 +612,7 @@ int main(int argc, char* argv[])
     points_south = malloc(nij_src * sizeof(point));
     points_north = malloc(nij_src * sizeof(point));
     for (k = 0; k < nk; ++k) {
-        int npoint = 0, npoint_south = 0,  npoint_north = 0;
+        int npoint = 0, npoint_south = 0, npoint_north = 0;
         int have_polar_south = 0, have_polar_north = 0;
 
         /*
@@ -629,7 +649,7 @@ int main(int argc, char* argv[])
                 p->z = vsrc[i];
                 npoint_south++;
             }
-        skip_south:
+          skip_south:
             if (isfinite(xsrc_north[i]) && isfinite(ysrc_north[i])) {
                 if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
                     if (have_polar_north)
@@ -643,7 +663,7 @@ int main(int argc, char* argv[])
                 p->z = vsrc[i];
                 npoint_north++;
             }
-        skip_north:
+          skip_north:
             npoint++;
         }
 
@@ -697,14 +717,14 @@ int main(int argc, char* argv[])
             delaunay_destroy(d_north);
         }
 
-    finalise_level:
+      finalise_level:
 
         ncu_writefield(fname_dst_tmp, varname, k, ni_dst, nj_dst, nk, vdst);
         if (verbose == 1) {
             printf("%c", (k + 1) % 10 ? '.' : '|');
             fflush(stdout);
         } else if (verbose > 1) {
-            
+
             printf("\n    k = %d: %d in, %d out", k, npoint, npoint_dst);
             if (npoint_filled > 0)
                 printf(" (%d filled)", npoint_filled);

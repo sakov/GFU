@@ -1004,19 +1004,29 @@ void ncu_writefield(char fname[], char varname[], int k, int ni, int nj, int nk,
                 else if (v[i] > attval[1])
                     v[i] = attval[1];
         }
-        if (ncw_att_exists2(ncid, varid, "_FillValue")) {
-            ncw_check_attlen(ncid, varid, "_FillValue", 1);
-            ncw_get_att_float(ncid, varid, "_FillValue", attval);
-        } else {
-            int nofill;
-
-            ncw_inq_var_fill(ncid, varid, &nofill, attval);
-            if (nofill)
-                attval[0] = NAN;
+        /*
+         * This section does not always work as intended. E.g. for "int" dst
+         * variable type _FillValue = -2147483647 is converted to -2.14748365e8f
+         * and then in nc_put_vara_float() to -2147483648. Removing the code
+         * below makes in that case no difference because NaNf is also converted
+         * to -2147483648 in nc_put_vara_float().
+         *
+         * Yet sometimes the section below turns useful, e.g. in cases when src
+         * and dst have the same data type but different fill values.
+         */
+        {
+            int nofill = 0;
+            
+            if (ncw_att_exists2(ncid, varid, "_FillValue")) {
+                ncw_check_attlen(ncid, varid, "_FillValue", 1);
+                ncw_get_att_float(ncid, varid, "_FillValue", attval);
+            } else
+                ncw_inq_var_fill(ncid, varid, &nofill, attval);
+            if (!nofill)
+                for (i = 0; i < n; ++i)
+                    if (isnan(v[i]))
+                        v[i] = attval[0];
         }
-        for (i = 0; i < n; ++i)
-            if (isnan(v[i]))
-                v[i] = attval[0];
         if (ncw_att_exists2(ncid, varid, "missing_value")) {
             ncw_check_attlen(ncid, varid, "missing_value", 1);
             ncw_get_att_float(ncid, varid, "missing_value", attval);
