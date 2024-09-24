@@ -6,18 +6,17 @@ GFU contains several utilities developed in the course of the author's work with
 large geophysical models.
 
 REGRID_LL
-  Utility for interpolating geophysical layered fields onto a different
-  horizontal grid. It targets geographic grids with nodes defined in lat/lon and
-  provides robust interpolation on sphere, including topologically complicated
-  cases (e.g. tripolar grids, grids with discontinuities in node coordinates
-  etc.). The source and destination horizontal grids can be either structured
-  ([j][i]) or unstructured ([i]). The vertical layers are interpolated
-  sequentially.
+  Utility for horizontal interpolation of geophysical layered fields. It targets
+  geographic grids with nodes defined in lat/lon and provides robust
+  interpolation on sphere, including topologically complicated cases (e.g.
+  tripolar grids, grids with discontinuities in node coordinates etc.).
+  The source and destination horizontal grids can be either structured
+  ([j][i]) or unstructured ([i]).
 
 NCAVE
   Utility for averaging very large ensemble dumps. Compared to NCEA/NCRA it (1)
   conserves memory by averaging on layer-by-layer basis, and (2) when run on
-  multiple CPUs processes layers in parallel. Note that for optimal efficiency
+  multiple CPUs processes layers in parallel. Note that for best performance
   the input dumps must be chunked by layers.
 
 NCCAT
