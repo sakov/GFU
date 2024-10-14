@@ -23,6 +23,8 @@ typedef void (*ncu_quit_fn) (char* format, ...);
 
 void ncu_set_quitfn(ncu_quit_fn quit_fn);
 
+int ncu_getnfields(char fname[], char varname[]);
+
 /*
  * generic read procedures
  */

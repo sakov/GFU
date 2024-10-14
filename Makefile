@@ -20,7 +20,8 @@ CFLAGSMPI = $(CFLAGS) -DMPI
 PROGRAMS =\
 bin/regrid_ll\
 bin/nccat\
-bin/ncave
+bin/ncave\
+bin/ncd2f
 
 SRC_REGRID_LL =\
 apps/regrid_ll.c\
@@ -58,6 +59,18 @@ common/ncutils.h\
 common/version.h\
 common/utils.h
 
+SRC_NCD2F =\
+apps/ncd2f.c\
+common/ncutils.c\
+common/utils.c\
+common/ncw.c
+
+HDR_NCD2F =\
+common/ncw.h\
+common/ncutils.h\
+common/utils.h\
+common/version.h
+
 default: bin $(PROGRAMS)
 
 bin:
@@ -72,6 +85,9 @@ bin/nccat: Makefile $(SRC_NCCAT) $(HDR_NCCAT)
 bin/ncave: Makefile $(SRC_NCAVE) $(HDR_NCAVE)
 	$(CC$(MPISTATUS_NCAVE)) $(CFLAGS$(MPISTATUS_NCAVE)) $(INCS) -o $@ $(SRC_NCAVE) $(LIBS)
 
+bin/ncd2f: Makefile $(SRC_NCD2F) $(HDR_NCD2F)
+	$(CC) $(CFLAGS) $(INCS) -o $@ $(SRC_NCD2F) $(LIBS)
+
 clean:
 	rm -f bin/*
 
@@ -79,4 +95,4 @@ tar:
 	make clean; cd ..; tar -czvf gfu-v$(VERSION).tar.gz gfu; echo "  ->../gfu-v$(VERSION).tar.gz"
 
 indent:
-	indent -T size_t -T nc_type -T field -T int8_t -T int16_t -T int32_t -T int64_t -T delaunay */*.[ch]; rm -f */*.[ch]~
+	indent -T delaunay -T nc_type -T nctype2str -T field -T int8_t -T int16_t -T int32_t -T int64_t -T size_t */*.[ch]; rm -f */*.[ch]~

@@ -1,3 +1,11 @@
+v0.06
+  PS 20241015
+  -- Added utility ncd2f to convert restart dumps from double to float.
+  -- Added ncu_getnfields() to enable ncd2f converting by layers to reduce
+     memory when processing very large dumps.
+  -- Added ncw_get_var_float_fixerange() to bypass NC_ERANGE errors ("numeric
+     conversion not representable" when reading double variables into float
+     arrays.
 v0.05
   PS 20240820
   -- regrid_ll: added option of setting the deflation level.

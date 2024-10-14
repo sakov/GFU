@@ -28,10 +28,12 @@
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
+#include <float.h>
+#include <math.h>
 #include <errno.h>
 #include "ncw.h"
 
-const char ncw_version[] = "2.31.1";
+const char ncw_version[] = "2.31.2";
 
 /*
  * A flag -- whether ncw_copy_vardef() (re-)defines chunking by layers.
@@ -844,6 +846,37 @@ void ncw_get_var_float(int ncid, int varid, float v[])
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
+    }
+}
+
+void ncw_get_var_float_fixerange(int ncid, int varid, float v[])
+{
+    int status = nc_get_var_float(ncid, varid, v);
+    nc_type type;
+
+    if (status == NC_NOERR)
+        return;
+
+    ncw_inq_vartype(ncid, varid, &type);
+    if (status != NC_ERANGE || type != NC_DOUBLE) {
+        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+            
+        ncw_inq_varname(ncid, varid, varname);
+        quit("\"%s\": nc_get_var_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
+    }
+
+    {
+        size_t size = ncw_get_varsize(ncid, varid);
+        double* vv = malloc(size * sizeof(double));
+        size_t i;
+        
+        ncw_get_var_double(ncid, varid, vv);
+        for (i = 0; i < size; ++i)
+            if (!isfinite(vv[i]) || vv[i] < -FLT_MAX || vv[i] > FLT_MAX)
+                v[i] = NAN;
+            else
+                v[i] = (float) vv[i];
+        free(vv);
     }
 }
 

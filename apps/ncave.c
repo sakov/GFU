@@ -38,7 +38,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncave"
-#define PROGRAM_VERSION "0.00"
+#define PROGRAM_VERSION "0.01"
 
 #define ALIGN __attribute__((aligned(32)))
 
@@ -143,6 +143,7 @@ static void usage(int exitstatus)
     printf("         ncave -v\n");
     printf("  Parameters:\n");
     printf("    -v <var>            -- variable to be averaged over all input files\n");
+    printf("                           (default: all variables with 2 or more dimensions)\n");
     printf("    -c <var>            -- variable to be copied from the first input file\n");
     printf("    {<src> [...] <dst>} -- list of input files followed by the output  file\n");
     printf("    -f                  -- overwrite destination if exists\n");
