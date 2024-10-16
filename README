@@ -22,6 +22,10 @@ NCAVE
 NCCAT
   Concatenates variables in NetCDF files over arbitrary dimensions.
 
+NCD2F
+  Converts double variables to float. Aimed at reducing size of large restart
+  dumps.
+
 LICENSE
 
 GFU is a public software. See LICENSE for details.

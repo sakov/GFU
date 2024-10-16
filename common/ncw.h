@@ -100,6 +100,7 @@ void ncw_put_vara_short(int ncid, int varid, const size_t start[], const size_t 
 void ncw_put_vara_ushort(int ncid, int varid, const size_t start[], const size_t count[], const unsigned short int v[]);
 void ncw_put_vara_int(int ncid, int varid, const size_t start[], const size_t count[], const int v[]);
 void ncw_put_vara_float(int ncid, int varid, const size_t start[], const size_t count[], const float v[]);
+void ncw_get_vara_float_fixerange(int ncid, int varid, const size_t start[], const size_t count[], float v[]);
 void ncw_put_vara_double(int ncid, int varid, const size_t start[], const size_t count[], const double v[]);
 void ncw_get_vara(int ncid, int varid, const size_t start[], const size_t count[], void* v);
 void ncw_get_vara_text(int ncid, int varid, const size_t start[], const size_t count[], char v[]);

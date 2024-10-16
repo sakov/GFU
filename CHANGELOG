@@ -1,3 +1,8 @@
+v0.07
+  PS 20241015
+  -- Fixed several defects in ncd2f.c.
+  -- Added ncw_get_vara_float_fixerange() to enable smooth reading in
+     ncu_readfield().
 v0.06
   PS 20241015
   -- Added utility ncd2f to convert restart dumps from double to float.

@@ -878,6 +878,7 @@ void ncw_get_var_float_fixerange(int ncid, int varid, float v[])
                 v[i] = (float) vv[i];
         free(vv);
     }
+
 }
 
 void ncw_get_var_double(int ncid, int varid, double v[])
@@ -1071,6 +1072,44 @@ void ncw_get_vara_float(int ncid, int varid, const size_t start[], const size_t 
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
+    }
+}
+
+void ncw_get_vara_float_fixerange(int ncid, int varid, const size_t start[], const size_t count[], float v[])
+{
+    int status = nc_get_vara_float(ncid, varid, start, count, v);
+    nc_type type;
+
+    if (status == NC_NOERR)
+        return;
+
+    ncw_inq_vartype(ncid, varid, &type);
+    if (status != NC_NOERR || type != NC_DOUBLE) {
+        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+
+        ncw_inq_varname(ncid, varid, varname);
+        quit("\"%s\": nc_get_vara_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
+    }
+
+    {
+        size_t size;
+        int ndim;
+        double* vv;
+        size_t i;
+
+        ncw_inq_varndims(ncid, varid, &ndim);
+        size = 1;
+        for (i = 0; i < ndim; ++i)
+            size *= count[i];
+        
+        vv = malloc(size * sizeof(double));
+        ncw_get_vara_double(ncid, varid, start, count, vv);
+        for (i = 0; i < size; ++i)
+            if (!isfinite(vv[i]) || vv[i] < -FLT_MAX || vv[i] > FLT_MAX)
+                v[i] = NAN;
+            else
+                v[i] = (float) vv[i];
+        free(vv);
     }
 }
 

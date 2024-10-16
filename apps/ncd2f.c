@@ -28,11 +28,10 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncd2f"
-#define PROGRAM_VERSION "0.01"
+#define PROGRAM_VERSION "0.02"
 
 #define VERBOSE_DEF 1
 
-#define NDIM_MIN_DEF 2
 #define DIMNAME_NTRIES 10
 #define NVAR_INC 100
 #define MAXSIZE (1024 * 1024 * 256)
@@ -44,21 +43,21 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> [{-v <var> [...] | -d <N>}] -o <dst>\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> [-v <var> [...]] -o <dst> [-O]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src>       -- source file\n");
     printf("    -o <dst>       -- destination file\n");
     printf("    -v <var> [...] -- variable to cast (default: all variables of type double\n");
     printf("                      that have 2 or more dimensions)\n");
-    printf("    -d <N>         -- minimal number of dimensions for a variable to be casted\n");
+    printf("    -O             -- clobber destination (default: append but do not overwrite variables)\n");
     printf("    -v             -- print version and exit\n");
     exit(status);
 }
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* ndim_min)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* clobber)
 {
     int i;
 
@@ -98,12 +97,8 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
             (*vars)[*nvar] = strdup(argv[i]);
             (*nvar)++;
             i++;
-        } else if (argv[i][1] == 'd') {
-            if (*vars != NULL)
-                quit("can not use both \"-v\" and \"-d\"");
-            i++;
-            if (!str2int(argv[i], ndim_min))
-                quit("could not convert \"%s\" to int", argv[i]);
+        } else if (strcmp(argv[i], "-O") == 0) {
+            *clobber = 1;
             i++;
         } else
             quit("unknown option \"%s\"", argv[i]);
@@ -121,10 +116,13 @@ static int copy_vardef_newtype(int ncid_src, int varid_src, int ncid_dst, char* 
     int ndims;
     int dimids_src[NC_MAX_DIMS], dimids_dst[NC_MAX_DIMS];
     int natts;
-    int status;
     int i, ii;
 
-    status = nc_redef(ncid_dst);
+    /*
+     * if dst is in definition mode, this call will do nothing (and return
+     * error code)
+     */
+    (void) nc_redef(ncid_dst);
 
     ncw_inq_unlimdim(ncid_src, &unlimdimid_src);
     ncw_inq_varname(ncid_src, varid_src, varname);
@@ -240,7 +238,7 @@ static int copy_vardef_newtype(int ncid_src, int varid_src, int ncid_dst, char* 
 
     ncw_def_var_deflate(ncid_dst, varid_dst, 0, 1, 1);
     
-    if (status == NC_NOERR)
+    //if (status == NC_NOERR)
         nc_enddef(ncid_dst);
 
     return varid_dst;
@@ -252,21 +250,26 @@ int main(int argc, char* argv[])
 {
     char* fname_src = NULL;
     char* fname_dst = NULL;
-    char** varnames_src = NULL;
     int nvar = 0;
-    int ndim_min = NDIM_MIN_DEF;
+    char** varnames_src = NULL;
+    int clobber = 0;
+
+    int nvar_cp = 0;
+    char** varnames_cp = NULL;
 
     char** varnames_dst = NULL;
     char* fname_dst_tmp = NULL;
     int ncid_src, ncid_dst;
     int vid;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &ndim_min);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &clobber);
 
     if (fname_src == NULL)
         quit("no input file specified");
     if (fname_dst == NULL)
         quit("no output file specified");
+    if (strcmp(fname_src, fname_dst) == 0)
+        quit("surce and destination files must be different");
     
     ncw_set_quitfn(quit);
     ncu_set_quitfn(quit);
@@ -287,12 +290,17 @@ int main(int argc, char* argv[])
             int ndim;
             
             ncw_inq_var(ncid_src, vid, name, &type, &ndim, NULL, NULL);
-            if (type != NC_DOUBLE || ndim < ndim_min)
-                continue;
-            if (nvar % NVAR_INC == 0)
-                varnames_src = realloc(varnames_src, (nvar + NVAR_INC) * sizeof(void*));
-            varnames_src[nvar] = strdup(name);
-            nvar++;
+            if (type != NC_DOUBLE || ncu_getnfields(fname_src, name) == 0) {
+                if (nvar_cp % NVAR_INC == 0)
+                    varnames_cp = realloc(varnames_cp, (nvar_cp + NVAR_INC) * sizeof(void*));
+                varnames_cp[nvar_cp] = strdup(name);
+                nvar_cp++;
+            } else {
+                if (nvar % NVAR_INC == 0)
+                    varnames_src = realloc(varnames_src, (nvar + NVAR_INC) * sizeof(void*));
+                varnames_src[nvar] = strdup(name);
+                nvar++;
+            }
         }
     }
     
@@ -301,7 +309,7 @@ int main(int argc, char* argv[])
      */
     if (verbose)
         printf("  %s:\n", fname_dst);
-    if (file_exists(fname_dst)) {
+    if (!clobber && file_exists(fname_dst)) {
         ncw_open(fname_dst, NC_WRITE, &ncid_dst);
         for (vid = 0; vid < nvar; ++vid)
             if (ncw_var_exists(ncid_dst, varnames_src[vid]))
@@ -353,12 +361,26 @@ int main(int argc, char* argv[])
         }
     }
 
+    /*
+     * copy variables that do not need conversion
+     */
+    for (vid = 0; vid < nvar_cp; ++vid) {
+        if (verbose) {
+            printf("    %s:", varnames_cp[vid]);
+            fflush(stdout);
+        }
+        ncw_copy_var(ncid_src, varnames_cp[vid], ncid_dst);
+        printf("+\n");
+        fflush(stdout);
+    }
+    /*
+     * write the converted variables
+     */
     for (vid = 0; vid < nvar; ++vid) {
         int varid_src, varid_dst;
         size_t size;
         float* v;
  
-        ncw_open(fname_src, NC_NOWRITE, &ncid_src);
         if (ncw_var_exists(ncid_dst, varnames_src[vid]))
             quit("%s: variable \"%s\" already exists", fname_dst, varnames_src[vid]);
         if (verbose) {
@@ -452,9 +474,16 @@ int main(int argc, char* argv[])
             free(varnames_dst[vid]);
         free(varnames_dst);
     }
-    for (vid = 0; vid < nvar; ++vid)
-        free(varnames_src[vid]);
-    free(varnames_src);
+    if (nvar > 0) {
+        for (vid = 0; vid < nvar; ++vid)
+            free(varnames_src[vid]);
+        free(varnames_src);
+    }
+    if (nvar_cp > 0) {
+        for (vid = 0; vid < nvar_cp; ++vid)
+            free(varnames_cp[vid]);
+        free(varnames_cp);
+    }
 
     return 0;
 }

@@ -612,7 +612,7 @@ void ncu_readfield(char fname[], char varname[], int k, int ni, int nj, int nk, 
     } else
         quit("ncu_readfield(): %s: can not read 2D field for \"%s\": # of dimensions = %d", fname, varname, ndims);
 
-    ncw_get_vara_float(ncid, varid, start, count, v);
+    ncw_get_vara_float_fixerange(ncid, varid, start, count, v);
 
     n = 1;
     for (i = 0; i < ndims; ++i)
