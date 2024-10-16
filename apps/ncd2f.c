@@ -28,7 +28,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncd2f"
-#define PROGRAM_VERSION "0.02"
+#define PROGRAM_VERSION "0.03"
 
 #define VERBOSE_DEF 1
 
@@ -48,8 +48,8 @@ static void usage(int status)
     printf("  Options:\n");
     printf("    -i <src>       -- source file\n");
     printf("    -o <dst>       -- destination file\n");
-    printf("    -v <var> [...] -- variable to cast (default: all variables of type double\n");
-    printf("                      that have 2 or more dimensions)\n");
+    printf("    -v <var> [...] -- variable to cast (default: all variables of type double with at least\n");
+    printf("                      one layer and all variables of type float that are not deflated)\n");
     printf("    -O             -- clobber destination (default: append but do not overwrite variables)\n");
     printf("    -v             -- print version and exit\n");
     exit(status);
@@ -238,8 +238,7 @@ static int copy_vardef_newtype(int ncid_src, int varid_src, int ncid_dst, char* 
 
     ncw_def_var_deflate(ncid_dst, varid_dst, 0, 1, 1);
     
-    //if (status == NC_NOERR)
-        nc_enddef(ncid_dst);
+    nc_enddef(ncid_dst);
 
     return varid_dst;
 }
@@ -287,10 +286,11 @@ int main(int argc, char* argv[])
         for (vid = 0; vid < nvar_all; ++vid) {
             char name[NC_MAX_NAME];
             nc_type type;
-            int ndim;
+            int deflate = 0, dlevel = 0;
             
-            ncw_inq_var(ncid_src, vid, name, &type, &ndim, NULL, NULL);
-            if (type != NC_DOUBLE || ncu_getnfields(fname_src, name) == 0) {
+            ncw_inq_var(ncid_src, vid, name, &type, NULL, NULL, NULL);
+            ncw_inq_var_deflate(ncid_src, vid, NULL, &deflate, &dlevel);
+            if ((type != NC_DOUBLE && type != NC_FLOAT) || ncu_getnfields(fname_src, name) == 0 || (type == NC_FLOAT && deflate && dlevel != 0)) {
                 if (nvar_cp % NVAR_INC == 0)
                     varnames_cp = realloc(varnames_cp, (nvar_cp + NVAR_INC) * sizeof(void*));
                 varnames_cp[nvar_cp] = strdup(name);
@@ -302,6 +302,13 @@ int main(int argc, char* argv[])
                 nvar++;
             }
         }
+    }
+
+    if (nvar == 0) {
+        if (verbose)
+            printf("  nothing to do!\n");
+        ncw_close(ncid_src);
+        goto finish;
     }
     
     /*
@@ -438,6 +445,10 @@ int main(int argc, char* argv[])
                     start[i] = 0;
                 ncw_put_vara_float(ncid_dst, varid_dst, start, dimlen, v);
             }
+            if (verbose) {
+                printf(".");
+                fflush(stdout);
+            }
             free(v);
         } else {
             int nk = ncu_getnfields(fname_src, varnames_src[vid]);
@@ -463,9 +474,11 @@ int main(int argc, char* argv[])
     if (fname_dst_tmp == NULL) {
         for (vid = 0; vid < nvar; ++vid)
             ncw_rename_var(ncid_dst, varnames_dst[vid], varnames_src[vid]);
-     }
+    }
+    ncw_close(ncid_src);
     ncw_close(ncid_dst);
 
+ finish:
     if (fname_dst_tmp != NULL)
         file_rename(fname_dst_tmp, fname_dst);
     

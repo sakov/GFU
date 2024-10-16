@@ -33,7 +33,7 @@
 #include <errno.h>
 #include "ncw.h"
 
-const char ncw_version[] = "2.31.2";
+const char ncw_version[] = "2.31.3";
 
 /*
  * A flag -- whether ncw_copy_vardef() (re-)defines chunking by layers.
