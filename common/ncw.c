@@ -1084,7 +1084,7 @@ void ncw_get_vara_float_fixerange(int ncid, int varid, const size_t start[], con
         return;
 
     ncw_inq_vartype(ncid, varid, &type);
-    if (status != NC_NOERR || type != NC_DOUBLE) {
+    if (status != NC_ERANGE || type != NC_DOUBLE) {
         char varname[NC_MAX_NAME] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);

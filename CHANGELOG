@@ -1,3 +1,6 @@
+v0.09
+  PS 20241015
+  -- Fixed defect in ncw_get_var_float_fixerange().
 v0.08
   PS 20241015
   -- A couple more fixes in ncd2f.c.
