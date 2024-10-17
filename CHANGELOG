@@ -1,3 +1,7 @@
+v0.10
+  PS 20241016
+  -- In nc2df added option "-x <var> [...]" to exclude variables from
+     copying/convertion.
 v0.09
   PS 20241015
   -- Fixed defect in ncw_get_var_float_fixerange().

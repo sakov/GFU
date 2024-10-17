@@ -26,9 +26,10 @@
 #include "ncw.h"
 #include "ncutils.h"
 #include "utils.h"
+#include "stringtable.h"
 
 #define PROGRAM_NAME "ncd2f"
-#define PROGRAM_VERSION "0.03"
+#define PROGRAM_VERSION "0.04"
 
 #define VERBOSE_DEF 1
 
@@ -43,21 +44,22 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> [-v <var> [...]] -o <dst> [-O]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> [{-v <var> [...] | -x <var> [...]}] [-O]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src>       -- source file\n");
     printf("    -o <dst>       -- destination file\n");
     printf("    -v <var> [...] -- variable to cast (default: all variables of type double with at least\n");
     printf("                      one layer and all variables of type float that are not deflated)\n");
-    printf("    -O             -- clobber destination (default: append but do not overwrite variables)\n");
+    printf("    -x <var> [...] -- exclude these variables\n");
+    printf("    -O             -- clobber destination (default: append but do not overwrite existing variables)\n");
     printf("    -v             -- print version and exit\n");
     exit(status);
 }
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* clobber)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* nvar_ex, char*** vars_ex, int* clobber)
 {
     int i;
 
@@ -96,6 +98,15 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
                 *vars = realloc(*vars, (*nvar + NVAR_INC) * sizeof(void*));
             (*vars)[*nvar] = strdup(argv[i]);
             (*nvar)++;
+            i++;
+        } else if (strcmp(argv[i], "-x") == 0) {
+            i++;
+            if (i >= argc)
+                quit("no variable specified after \"-x\"\n");
+            if (*nvar_ex % NVAR_INC == 0)
+                *vars_ex = realloc(*vars_ex, (*nvar_ex + NVAR_INC) * sizeof(void*));
+            (*vars_ex)[*nvar_ex] = strdup(argv[i]);
+            (*nvar_ex)++;
             i++;
         } else if (strcmp(argv[i], "-O") == 0) {
             *clobber = 1;
@@ -251,7 +262,11 @@ int main(int argc, char* argv[])
     char* fname_dst = NULL;
     int nvar = 0;
     char** varnames_src = NULL;
+    int nvar_ex = 0;
+    char** varnames_ex = NULL;
     int clobber = 0;
+
+    stringtable* exclude = NULL;
 
     int nvar_cp = 0;
     char** varnames_cp = NULL;
@@ -261,17 +276,25 @@ int main(int argc, char* argv[])
     int ncid_src, ncid_dst;
     int vid;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &clobber);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &nvar_ex, &varnames_ex, &clobber);
 
     if (fname_src == NULL)
         quit("no input file specified");
     if (fname_dst == NULL)
         quit("no output file specified");
     if (strcmp(fname_src, fname_dst) == 0)
-        quit("surce and destination files must be different");
+        quit("source and destination files must be different");
+    if (nvar != 0 && nvar_ex != 0)
+        quit("can not use both \"-v\" and \"-x\"");
     
     ncw_set_quitfn(quit);
     ncu_set_quitfn(quit);
+
+    if (nvar_ex > 0) {
+        exclude = st_create("exclude");
+        for (vid = 0; vid < nvar_ex; ++vid)
+            st_add_ifabsent(exclude, varnames_ex[vid], -1);
+    }
 
     ncw_open(fname_src, NC_NOWRITE, &ncid_src);
     
@@ -289,6 +312,8 @@ int main(int argc, char* argv[])
             int deflate = 0, dlevel = 0;
             
             ncw_inq_var(ncid_src, vid, name, &type, NULL, NULL, NULL);
+            if (exclude != NULL && st_findindexbystring(exclude, name) >= 0)
+                continue;
             ncw_inq_var_deflate(ncid_src, vid, NULL, &deflate, &dlevel);
             if ((type != NC_DOUBLE && type != NC_FLOAT) || ncu_getnfields(fname_src, name) == 0 || (type == NC_FLOAT && deflate && dlevel != 0)) {
                 if (nvar_cp % NVAR_INC == 0)
@@ -304,7 +329,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    if (nvar == 0) {
+    if (nvar == 0 && nvar_ex == 0) {
         if (verbose)
             printf("  nothing to do!\n");
         ncw_close(ncid_src);
@@ -482,6 +507,8 @@ int main(int argc, char* argv[])
     if (fname_dst_tmp != NULL)
         file_rename(fname_dst_tmp, fname_dst);
     
+    if (exclude != NULL)
+        st_destroy(exclude);
     if (varnames_dst != varnames_src) {
         for (vid = 0; vid < nvar; ++vid)
             free(varnames_dst[vid]);
@@ -497,6 +524,8 @@ int main(int argc, char* argv[])
             free(varnames_cp[vid]);
         free(varnames_cp);
     }
+    if (verbose)
+        printf("  finished\n");
 
     return 0;
 }

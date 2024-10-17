@@ -63,13 +63,15 @@ SRC_NCD2F =\
 apps/ncd2f.c\
 common/ncutils.c\
 common/utils.c\
-common/ncw.c
+common/ncw.c\
+common/stringtable.c
 
 HDR_NCD2F =\
 common/ncw.h\
 common/ncutils.h\
 common/utils.h\
-common/version.h
+common/version.h\
+common/stringtable.h
 
 default: bin $(PROGRAMS)
 
