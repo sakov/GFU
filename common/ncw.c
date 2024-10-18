@@ -860,7 +860,7 @@ void ncw_get_var_float_fixerange(int ncid, int varid, float v[])
     ncw_inq_vartype(ncid, varid, &type);
     if (status != NC_ERANGE || type != NC_DOUBLE) {
         char varname[NC_MAX_NAME] = STR_UNKNOWN;
-            
+
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
     }
@@ -869,7 +869,7 @@ void ncw_get_var_float_fixerange(int ncid, int varid, float v[])
         size_t size = ncw_get_varsize(ncid, varid);
         double* vv = malloc(size * sizeof(double));
         size_t i;
-        
+
         ncw_get_var_double(ncid, varid, vv);
         for (i = 0; i < size; ++i)
             if (!isfinite(vv[i]) || vv[i] < -FLT_MAX || vv[i] > FLT_MAX)
@@ -1101,7 +1101,7 @@ void ncw_get_vara_float_fixerange(int ncid, int varid, const size_t start[], con
         size = 1;
         for (i = 0; i < ndim; ++i)
             size *= count[i];
-        
+
         vv = malloc(size * sizeof(double));
         ncw_get_vara_double(ncid, varid, start, count, vv);
         for (i = 0; i < size; ++i)

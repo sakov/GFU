@@ -97,4 +97,4 @@ tar:
 	make clean; cd ..; tar -czvf gfu-v$(VERSION).tar.gz gfu; echo "  ->../gfu-v$(VERSION).tar.gz"
 
 indent:
-	indent -T delaunay -T nc_type -T nctype2str -T field -T int8_t -T int16_t -T int32_t -T int64_t -T size_t */*.[ch]; rm -f */*.[ch]~
+	indent -T delaunay -T nc_type -T nctype2str -T field -T int8_t -T int16_t -T int32_t -T int64_t -T uint16_t -T uint32_t -T uint64_t -T size_t -T stringtable */*.[ch]; rm -f */*.[ch]~

@@ -246,9 +246,7 @@ static int copy_vardef_newtype(int ncid_src, int varid_src, int ncid_dst, char* 
 
     ncw_def_var(ncid_dst, varname_dst, newtype, ndims, dimids_dst, &varid_dst);
     ncw_copy_atts(ncid_src, varid_src, ncid_dst, varid_dst);
-
     ncw_def_var_deflate(ncid_dst, varid_dst, 0, 1, 1);
-    
     nc_enddef(ncid_dst);
 
     return varid_dst;
@@ -286,7 +284,7 @@ int main(int argc, char* argv[])
         quit("source and destination files must be different");
     if (nvar != 0 && nvar_ex != 0)
         quit("can not use both \"-v\" and \"-x\"");
-    
+
     ncw_set_quitfn(quit);
     ncu_set_quitfn(quit);
 
@@ -297,20 +295,20 @@ int main(int argc, char* argv[])
     }
 
     ncw_open(fname_src, NC_NOWRITE, &ncid_src);
-    
+
     /*
      * get variables to convert
      */
     if (varnames_src == NULL) {
         int nvar_all, vid;
-        
+
         nvar = 0;
         ncw_inq_nvars(ncid_src, &nvar_all);
         for (vid = 0; vid < nvar_all; ++vid) {
             char name[NC_MAX_NAME];
             nc_type type;
             int deflate = 0, dlevel = 0;
-            
+
             ncw_inq_var(ncid_src, vid, name, &type, NULL, NULL, NULL);
             if (exclude != NULL && st_findindexbystring(exclude, name) >= 0)
                 continue;
@@ -335,7 +333,7 @@ int main(int argc, char* argv[])
         ncw_close(ncid_src);
         goto finish;
     }
-    
+
     /*
      * open destination
      */
@@ -355,14 +353,14 @@ int main(int argc, char* argv[])
             quit("destination too long");
         ncw_create(fname_dst_tmp, NC_CLOBBER | NC_NETCDF4, &ncid_dst);
     }
-    
+
     /*
      * if appending to an existing file -- write to a temporary variable name
      * first
      */
     if (fname_dst_tmp == NULL) {
         int vid;
-        
+
         varnames_dst = malloc(nvar * sizeof(void*));
         for (vid = 0; vid < nvar; ++vid) {
             varnames_dst[vid] = malloc(strlen(varnames_src[vid]) + strlen(TEMPVARSUF) + 1);
@@ -383,7 +381,7 @@ int main(int argc, char* argv[])
         char* cmd = get_command(argc, argv);
         char attname[NC_MAX_NAME];
         char cwd[MAXSTRLEN];
-        
+
         snprintf(attname, NC_MAX_NAME, "%s: command", PROGRAM_NAME);
         ncw_put_att_text(ncid_dst, NC_GLOBAL, attname, cmd);
         free(cmd);
@@ -412,7 +410,7 @@ int main(int argc, char* argv[])
         int varid_src, varid_dst;
         size_t size;
         float* v;
- 
+
         if (ncw_var_exists(ncid_dst, varnames_src[vid]))
             quit("%s: variable \"%s\" already exists", fname_dst, varnames_src[vid]);
         if (verbose) {
@@ -424,7 +422,7 @@ int main(int argc, char* argv[])
             varid_dst = copy_vardef_newtype(ncid_src, varid_src, ncid_dst, varnames_dst[vid], NC_FLOAT);
         else
             ncw_inq_varid(ncid_dst, varnames_dst[vid], &varid_dst);
-#if 0        
+#if 0
         {
             int natt, i;
 
@@ -445,10 +443,10 @@ int main(int argc, char* argv[])
         size = ncw_get_varsize(ncid_src, varid_src);
         if (size <= MAXSIZE) {
             int use_putvara = 0;
-            
+
             v = malloc(size * ncw_sizeof(NC_FLOAT));
             ncu_readvarfloat(ncid_src, varid_src, size, v);
-            
+
             if (ncw_var_hasunlimdim(ncid_dst, varid_dst)) {
                 int nr_src = ncw_inq_nrecords(ncid_src);
                 int nr_dst = ncw_inq_nrecords(ncid_dst);
@@ -503,10 +501,10 @@ int main(int argc, char* argv[])
     ncw_close(ncid_src);
     ncw_close(ncid_dst);
 
- finish:
+  finish:
     if (fname_dst_tmp != NULL)
         file_rename(fname_dst_tmp, fname_dst);
-    
+
     if (exclude != NULL)
         st_destroy(exclude);
     if (varnames_dst != varnames_src) {
