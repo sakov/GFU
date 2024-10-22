@@ -1,3 +1,7 @@
+v0.11
+  PS 20241022
+  -- Modified ncw_copy_atts() to aleviate casting of default fill value for
+     NC_DOUBLE to 0 when converting to NC_FLOAT.
 v0.10
   PS 20241016
   -- In nc2df added option "-x <var> [...]" to exclude variables from
