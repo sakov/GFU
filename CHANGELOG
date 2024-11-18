@@ -1,3 +1,8 @@
+v0.12
+  PS 20241118
+  -- Added option "-N" to ncd2f. It forces copying dimensions from source to
+     destination in the original order and is necessary for processing NEMO
+     tiles to enable rebuilding of the restart.
 v0.11
   PS 20241022
   -- Modified ncw_copy_atts() to aleviate casting of default fill value for

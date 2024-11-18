@@ -29,7 +29,7 @@
 #include "stringtable.h"
 
 #define PROGRAM_NAME "ncd2f"
-#define PROGRAM_VERSION "0.04"
+#define PROGRAM_VERSION "0.05"
 
 #define VERBOSE_DEF 1
 
@@ -53,13 +53,14 @@ static void usage(int status)
     printf("                      one layer and all variables of type float that are not deflated)\n");
     printf("    -x <var> [...] -- exclude these variables\n");
     printf("    -O             -- clobber destination (default: append but do not overwrite existing variables)\n");
+    printf("    -N             -- copy dimensions in the original order (for rebuilding NEMO)\n");
     printf("    -v             -- print version and exit\n");
     exit(status);
 }
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* nvar_ex, char*** vars_ex, int* clobber)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* nvar_ex, char*** vars_ex, int* clobber, int* orig)
 {
     int i;
 
@@ -110,6 +111,9 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
             i++;
         } else if (strcmp(argv[i], "-O") == 0) {
             *clobber = 1;
+            i++;
+        } else if (strcmp(argv[i], "-N") == 0) {
+            *orig = 1;
             i++;
         } else
             quit("unknown option \"%s\"", argv[i]);
@@ -263,6 +267,7 @@ int main(int argc, char* argv[])
     int nvar_ex = 0;
     char** varnames_ex = NULL;
     int clobber = 0;
+    int orig = 0;
 
     stringtable* exclude = NULL;
 
@@ -274,7 +279,7 @@ int main(int argc, char* argv[])
     int ncid_src, ncid_dst;
     int vid;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &nvar_ex, &varnames_ex, &clobber);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &nvar_ex, &varnames_ex, &clobber, &orig);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -354,6 +359,9 @@ int main(int argc, char* argv[])
         ncw_create(fname_dst_tmp, NC_CLOBBER | NC_NETCDF4, &ncid_dst);
     }
 
+    if (orig)
+        ncw_copy_dims(ncid_src, ncid_dst);
+                      
     /*
      * if appending to an existing file -- write to a temporary variable name
      * first
