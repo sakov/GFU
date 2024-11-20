@@ -9,8 +9,6 @@
  *
  * Description: NCD2F reads a variable (or all variables) of type double from a
  *              NetCDF file, casts it (them) to float and saves to another file.
- *
- *              The data is assumed to be in NetCDF format.
  *             
  * Revisions:
  *
@@ -29,7 +27,7 @@
 #include "stringtable.h"
 
 #define PROGRAM_NAME "ncd2f"
-#define PROGRAM_VERSION "0.05"
+#define PROGRAM_VERSION "0.06"
 
 #define VERBOSE_DEF 1
 
@@ -44,7 +42,7 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> -o <dst> [{-v <var> [...] | -x <var> [...]}] [-O]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> [{-v <var> [...] | -x <var> [...]}] [-O] [-N]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src>       -- source file\n");

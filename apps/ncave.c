@@ -461,7 +461,7 @@ int main(int argc, char* argv[])
      * calculate average fields and write them to tiles
      */
     if (nfield > 0) {
-        distribute_iterations(0, nfield - 1, nprocesses, rank);
+        distribute_iterations(0, nfield - 1, nprocesses, nprocesses, rank);
         if (verbose)
             printlog("  writing tiles:");
         for (i = my_first_iteration; i <= my_last_iteration; ++i) {

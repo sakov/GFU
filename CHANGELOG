@@ -1,3 +1,7 @@
+v0.13
+  PS 20241121
+  -- A minor correction of usage in ncd2f.c.
+  -- A number of cosmetic modifications in distribute.[ch].
 v0.12
   PS 20241118
   -- Added option "-N" to ncd2f. It forces copying dimensions from source to

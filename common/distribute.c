@@ -7,20 +7,18 @@
  * Author:      Pavel Sakov
  *              Bureau of Meteorology
  *
- * Description: Distributes indices in the interval [i1, i2] between `nproc'
- *              processes. Process IDs are assumed to be in the interval
- *              [0, nproc-1]. The calling process has ID `rank'. The results
- *              are stored in 6 global variables, with the following relations
- *              between them:
+ * Description: Distributes indices in the interval [i1, i2] between slots in
+ *              the interval [0, nslot_used - 1]. The calling slot has ID
+ *              `myrank'. The results are stored in 6 global variables, with
+ *              the following relations between them:
  *                my_number_of_iterations = my_last_iteration 
  *                                                      - my_first_iteration + 1
  *                my_number_of_iterations = number_of_iterations[rank]
- *                my_first_iteration = first_iteratin[rank]
+ *                my_first_iteration = first_iteration[rank]
  *                my_last_iteration = last_iteration[rank]
+ *              This code is based on distribute.[ch] in EnKF-C package.
  *
- * Revisions:   18/04/2018 PS: `nproc' was supposed to be an alias for
- *              `nprocesses'; now it can be arbitrary number such that
- *              0 < nproc < nprocesses.
+ * Revisions:
  *
  *****************************************************************************/
 
@@ -41,18 +39,18 @@ int* number_of_iterations = NULL;
 int* first_iteration = NULL;
 int* last_iteration = NULL;
 
-/** Distributes indices in the interval [i1, i2] between `nproc' processes.
+/** Distributes indices in the interval [i1, i2] between slots in the interval
+ ** [0, nslot - 1]. The results are written to 6 global variables.
  * @param i1 Start of the interval
  * @param i2 End of the interval
- * @param nproc Number of processes (CPUs) to be be used
+ * @param nslot_used Number of slots (CPUs) to be be used
+ * @param nslot_total Total number of slots (CPUs)
  * @param myrank ID of the process
- * @param prefix Prefix for log printing; NULL to print no log.
- * Note that `nprocesses' and `rank' are supposed to be external (global) 
- * variables.
  */
-void distribute_iterations(int i1, int i2, int nproc, int myrank)
+void distribute_iterations(int i1, int i2, int nslot_used, int nslot_total, int myrank)
 {
-    int n, npp, i;
+    int niter = i2 - i1 + 1;
+    int npp, i, j;
 
 #if defined(MPI)
     fflush(stdout);
@@ -61,42 +59,24 @@ void distribute_iterations(int i1, int i2, int nproc, int myrank)
     assert(i2 >= i1);
 
     if (number_of_iterations == NULL) {
-        number_of_iterations = malloc(nprocesses * sizeof(int));
-        first_iteration = malloc(nprocesses * sizeof(int));
-        last_iteration = malloc(nprocesses * sizeof(int));
+        number_of_iterations = malloc(nslot_total * sizeof(int));
+        first_iteration = malloc(nslot_total * sizeof(int));
+        last_iteration = malloc(nslot_total * sizeof(int));
     }
-#if defined(MPI)
-    MPI_Barrier(MPI_COMM_WORLD);
-#endif
+    assert(nslot_used > 0 && nslot_used <= nslot_total);
 
-    assert(nproc > 0 && nproc <= nprocesses);
-
-    n = i2 - i1 + 1;
-    npp = n / nproc;
-    if (n % nproc == 0) {
-        for (i = 0; i < nproc; ++i)
-            number_of_iterations[i] = npp;
-    } else {
-        int j = n - nproc * npp;
-
-        for (i = 0; i < j; ++i)
-            number_of_iterations[i] = npp + 1;
-        for (i = j; i < nproc; ++i)
-            number_of_iterations[i] = npp;
-    }
-    for (i = nproc; i < nprocesses; ++i)
+    npp = niter / nslot_used;
+    j = niter % nslot_used;
+    for (i = 0; i < j; ++i)
+        number_of_iterations[i] = npp + 1;
+    for (i = j; i < nslot_used; ++i)
+        number_of_iterations[i] = npp;
+    for (i = nslot_used; i < nslot_total; ++i)
         number_of_iterations[i] = 0;
-#if defined(MPI)
-    MPI_Barrier(MPI_COMM_WORLD);
-#endif
 
     first_iteration[0] = i1;
     last_iteration[0] = i1 + number_of_iterations[0] - 1;
-    for (i = 1; i < nproc; ++i) {
-        first_iteration[i] = last_iteration[i - 1] + 1;
-        last_iteration[i] = first_iteration[i] + number_of_iterations[i] - 1;
-    }
-    for (i = nproc; i < nprocesses; ++i) {
+    for (i = 1; i < nslot_total; ++i) {
         first_iteration[i] = last_iteration[i - 1] + 1;
         last_iteration[i] = first_iteration[i] + number_of_iterations[i] - 1;
     }
@@ -104,6 +84,10 @@ void distribute_iterations(int i1, int i2, int nproc, int myrank)
     my_first_iteration = first_iteration[myrank];
     my_last_iteration = last_iteration[myrank];
     my_number_of_iterations = number_of_iterations[myrank];
+
+#if defined(MPI)
+    MPI_Barrier(MPI_COMM_WORLD);
+#endif
 }
 
 /**
