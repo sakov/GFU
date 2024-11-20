@@ -32,6 +32,7 @@
 #endif
 #include "distribute.h"
 
+int nslot_allocated = 0;
 int my_number_of_iterations = -1;
 int my_first_iteration = -1;
 int my_last_iteration = -1;
@@ -52,18 +53,25 @@ void distribute_iterations(int i1, int i2, int nslot_used, int nslot_total, int 
     int niter = i2 - i1 + 1;
     int npp, i, j;
 
+    assert(i2 >= i1);
+    assert(nslot_used > 0 && nslot_used <= nslot_total);
+
 #if defined(MPI)
     fflush(stdout);
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
-    assert(i2 >= i1);
 
     if (number_of_iterations == NULL) {
         number_of_iterations = malloc(nslot_total * sizeof(int));
         first_iteration = malloc(nslot_total * sizeof(int));
         last_iteration = malloc(nslot_total * sizeof(int));
+        nslot_allocated = nslot_total;
+    } else if (nslot_used > nslot_allocated) {
+        number_of_iterations = realloc(number_of_iterations, nslot_total * sizeof(int));
+        first_iteration = realloc(first_iteration, nslot_total * sizeof(int));
+        last_iteration = realloc(last_iteration, nslot_total * sizeof(int));
+        nslot_allocated = nslot_total;
     }
-    assert(nslot_used > 0 && nslot_used <= nslot_total);
 
     npp = niter / nslot_used;
     j = niter % nslot_used;
