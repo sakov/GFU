@@ -29,12 +29,14 @@ int ncu_getnfields(char fname[], char varname[]);
  * generic read procedures
  */
 void ncu_readvarfloat(int ncid, int varid, size_t n, float v[]);
+void ncu_readvardouble(int ncid, int varid, size_t n, double v[]);
 
 /*
  * model r/w procedures
  */
 void ncu_readfield(char fname[], char varname[], int k, int ni, int nj, int nk, float* v);
 void ncu_writefield(char fname[], char varname[], int k, int ni, int nj, int nk, float* v);
+void ncu_readfield_double(char fname[], char varname[], int k, int ni, int nj, int nk, double* v);
 
 #define _NCUTILS_H
 #endif

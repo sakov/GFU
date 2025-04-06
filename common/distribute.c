@@ -51,7 +51,7 @@ int* last_iteration = NULL;
 void distribute_iterations(int i1, int i2, int nslot_used, int nslot_total, int myrank)
 {
     int niter = i2 - i1 + 1;
-    int npp, i, j;
+    int ii, jj, i;
 
     assert(i2 >= i1);
     assert(nslot_used > 0 && nslot_used <= nslot_total);
@@ -73,12 +73,12 @@ void distribute_iterations(int i1, int i2, int nslot_used, int nslot_total, int 
         nslot_allocated = nslot_total;
     }
 
-    npp = niter / nslot_used;
-    j = niter % nslot_used;
-    for (i = 0; i < j; ++i)
-        number_of_iterations[i] = npp + 1;
-    for (i = j; i < nslot_used; ++i)
-        number_of_iterations[i] = npp;
+    ii = niter / nslot_used;
+    jj = niter % nslot_used;
+    for (i = 0; i < jj; ++i)
+        number_of_iterations[i] = ii + 1;
+    for (i = jj; i < nslot_used; ++i)
+        number_of_iterations[i] = ii;
     for (i = nslot_used; i < nslot_total; ++i)
         number_of_iterations[i] = 0;
 

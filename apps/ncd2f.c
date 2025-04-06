@@ -359,7 +359,7 @@ int main(int argc, char* argv[])
 
     if (orig)
         ncw_copy_dims(ncid_src, ncid_dst);
-                      
+
     /*
      * if appending to an existing file -- write to a temporary variable name
      * first

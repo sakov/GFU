@@ -26,6 +26,9 @@ NCD2F
   Converts double variables to float. Aimed at reducing size of large restart
   dumps.
 
+NCMINMAX
+  Finds minimal and maximal values of a variable in a NetCDF file.
+
 LICENSE
 
 GFU is a public software. See LICENSE for details.

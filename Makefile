@@ -21,7 +21,8 @@ PROGRAMS =\
 bin/regrid_ll\
 bin/nccat\
 bin/ncave\
-bin/ncd2f
+bin/ncd2f\
+bin/ncminmax
 
 SRC_REGRID_LL =\
 apps/regrid_ll.c\
@@ -73,6 +74,18 @@ common/utils.h\
 common/version.h\
 common/stringtable.h
 
+SRC_NCMINMAX =\
+apps/ncminmax.c\
+common/ncutils.c\
+common/utils.c\
+common/ncw.c
+
+HDR_NCMINMAX =\
+common/ncw.h\
+common/ncutils.h\
+common/utils.h\
+common/version.h
+
 default: bin $(PROGRAMS)
 
 bin:
@@ -89,6 +102,9 @@ bin/ncave: Makefile $(SRC_NCAVE) $(HDR_NCAVE)
 
 bin/ncd2f: Makefile $(SRC_NCD2F) $(HDR_NCD2F)
 	$(CC) $(CFLAGS) $(INCS) -o $@ $(SRC_NCD2F) $(LIBS)
+
+bin/ncminmax: Makefile $(SRC_NCMINMAX) $(HDR_NCMINMAX)
+	$(CC) $(CFLAGS) $(INCS) -o $@ $(SRC_NCMINMAX) $(LIBS)
 
 clean:
 	rm -f bin/*
