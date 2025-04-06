@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.05"
+#define PROGRAM_VERSION "0.06"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
@@ -41,16 +41,16 @@ int doave = 0;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [-m <mask file> <var>] [-a] [-s] [-v]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [-m <file> <var>] [-a] [-s] [-v]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
-    printf("  -m <mask file> <var> -- set mask: either 2D with 0s and 1s;\n");
-    printf("     or 2D with number of valid layers in a column;\n");
-    printf("     or of the size of the variable with 0s and 1s\n");
-    printf("  -a -- also report average\n");
-    printf("  -s -- strict (no missing values allowed)\n");
-    printf("  -v -- verbose (more info) | print version and exit\n");
-    printf("  -V -- more verbose (print by-layer results)\n");
+    printf("    -m <file> <var> -- set mask: either 2D with 0s and 1s;\n");
+    printf("       or 2D with number of valid layers in a column;\n");
+    printf("       or of the size of the variable with 0s and 1s\n");
+    printf("    -a -- also report average\n");
+    printf("    -s -- strict (no missing values allowed)\n");
+    printf("    -v -- verbose (more info) | print version and exit\n");
+    printf("    -V -- more verbose (print by-layer results)\n");
     exit(status);
 }
 
