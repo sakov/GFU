@@ -324,11 +324,14 @@ int main(int argc, char* argv[])
             printf(")\n");
         }
     }
-    free(v);
-    ave /= (double) n;
     if (verbose == 1 && layered)
         printf("\n");
 
+    if (mask != NULL)
+        free(mask);
+    free(v);
+
+    ave /= (double) n;
     if (verbose) {
         if (verbose == 1)
             printf("  %s:\n", fname);
@@ -361,7 +364,7 @@ int main(int argc, char* argv[])
             imax = imax - slabsize * ii;
         }
         printf(")\n");
-        printf("    %s: %zu valid values (%.2f%%)\n", varname, n, (double) n / size * 100.0);
+        printf("    %s: %zu valid values (%.2f%%)\n", varname, n, (double) n / (double) size * 100.0);
     } else {
         if (doave)
             printf("  %.4g %.4g %.4g\n", min, ave, max);
