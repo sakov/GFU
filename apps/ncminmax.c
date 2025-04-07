@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.06"
+#define PROGRAM_VERSION "0.07"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
