@@ -1,5 +1,8 @@
+v0.15
+  PS 20250408
+  -- Fixed reading of the source mask (was skipped in some/most? cases).
 v0.14
-  PS 20250507
+  PS 20250407
   -- Added new utility ncminmax (apps/ncminmax.c).
 v0.13
   PS 20241121

@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.03"
+#define PROGRAM_VERSION "0.04"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -373,23 +373,23 @@ int main(int argc, char* argv[])
             } else {
                 quit("%s,%s: dimensions of variable \"%s\" do not match grid coordinate(s) \"%s\" or(and) \"%s\"", fname_src, grdname_src, varname, xname_src, yname_src);
             }
-            if (nkname_src != NULL) {
-                int varid;
+        }
+        if (nkname_src != NULL) {
+            int varid;
 
-                ncw_inq_varid(ncid, nkname_src, &varid);
-                if (nj_src > 0) {
-                    size_t dimlen[2] = { nj_src, ni_src };
+            ncw_inq_varid(ncid, nkname_src, &varid);
+            if (nj_src > 0) {
+                size_t dimlen[2] = { nj_src, ni_src };
+                
+                ncw_check_vardims(ncid, varid, 2, dimlen);
+            } else if (nj_src == 0) {
+                size_t dimlen = ni_src;
 
-                    ncw_check_vardims(ncid, varid, 2, dimlen);
-                } else if (nj_src == 0) {
-                    size_t dimlen = ni_src;
-
-                    ncw_check_vardims(ncid, varid, 1, &dimlen);
-                } else
-                    quit("programming error");
-                nksrc = malloc(nij_src * sizeof(int));
-                ncw_get_var_int(ncid, varid, nksrc);
-            }
+                ncw_check_vardims(ncid, varid, 1, &dimlen);
+            } else
+                quit("programming error");
+            nksrc = malloc(nij_src * sizeof(int));
+            ncw_get_var_int(ncid, varid, nksrc);
         }
         ncw_close(ncid);
     }
