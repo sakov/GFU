@@ -67,12 +67,12 @@ static void usage(int status)
     printf("    -v <varname> -- variable to interpolate\n");
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
-    printf("    -d <level> -- deflation level (default = as in src)\n");
+    printf("    -d <level> -- deflation level (default = as in source)\n");
     printf("    -m -- flag: use NaN for filling (default = use zero)\n");
     printf("    -n -- flag: use the deepest valid value for filling the rest of the column\n");
     printf("    -s -- flag: do not use the first and last columns of the source field\n");
     printf("    -t -- geographically apply source mask to destination\n");
-    printf("          (e.g. with NEMO on ORCA grids)\n");
+    printf("          (e.g. when interpolating from ORCA to geographic grids)\n");
     printf("    -V <level> -- set verbosity to 0, 1, or 2 (default = 1)\n");
     printf("    -v -- print version and exit\n");
     exit(status);
