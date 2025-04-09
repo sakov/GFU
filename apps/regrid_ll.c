@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.04"
+#define PROGRAM_VERSION "0.05"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -67,10 +67,11 @@ static void usage(int status)
     printf("    -v <varname> -- variable to interpolate\n");
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
-    printf("    -d <level> -- deflation level\n");
+    printf("    -d <level> -- deflation level (as in src)\n");
     printf("    -m -- flag: use NaN for filling (default = use zero)\n");
     printf("    -n -- flag: use the deepest valid value for filling the rest of the column\n");
     printf("    -s -- flag: do not use the first and last columns of the source field\n");
+    printf("    -t -- geographically apply source mask to destination\n");
     printf("          (e.g. with NEMO on ORCA grids)\n");
     printf("    -V <level> -- set verbosity to 0, 1, or 2 (default = 1)\n");
     printf("    -v -- print version and exit\n");
@@ -79,7 +80,7 @@ static void usage(int status)
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* verbose)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* transfermask, int* verbose)
 {
     int i;
 
@@ -173,6 +174,9 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
         } else if (strcmp(&argv[i][1], "s") == 0) {
             *skipfirstlast = 1;
             i++;
+        } else if (strcmp(&argv[i][1], "t") == 0) {
+            *transfermask = 1;
+            i++;
         } else
             quit("unknown option \"%s\"", argv[i]);
     }
@@ -212,6 +216,7 @@ int main(int argc, char* argv[])
     int propagatedown = 0;
     int nanfill = 0;
     int skipfirstlast = 0;
+    int transfermask = 0;
     int verbose = VERBOSE_DEF;
 
     int gridtype = GRIDTYPE_UNDEF;
@@ -264,7 +269,7 @@ int main(int argc, char* argv[])
 
     int i, k;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &deflate, &propagatedown, &nanfill, &skipfirstlast, &verbose);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &deflate, &propagatedown, &nanfill, &skipfirstlast, &transfermask, &verbose);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -380,7 +385,7 @@ int main(int argc, char* argv[])
             ncw_inq_varid(ncid, nkname_src, &varid);
             if (nj_src > 0) {
                 size_t dimlen[2] = { nj_src, ni_src };
-                
+
                 ncw_check_vardims(ncid, varid, 2, dimlen);
             } else if (nj_src == 0) {
                 size_t dimlen = ni_src;
@@ -461,6 +466,8 @@ int main(int argc, char* argv[])
         if (nkname_dst != NULL) {
             int varid;
 
+            if (transfermask)
+                quit("can not both define destination mask and ask to transfer it from the source grid");
             ncw_inq_varid(ncid, nkname_dst, &varid);
             if (nj_dst > 0) {
                 size_t dimlen[2] = { nj_dst, ni_dst };
@@ -593,6 +600,83 @@ int main(int argc, char* argv[])
         fflush(stdout);
     }
 
+    points_south = malloc(nij_src * sizeof(point));
+    points_north = malloc(nij_src * sizeof(point));
+
+    if (transfermask && nkdst == NULL) {
+        int npoint = 0, npoint_south = 0, npoint_north = 0;
+        int have_polar_south = 0, have_polar_north = 0;
+        delaunay* d_south = NULL;
+        delaunay* d_north = NULL;
+        void* interp_south = NULL;
+        void* interp_north = NULL;
+
+        if (verbose) {
+            printf("  building mask from src:");
+            fflush(stdout);
+        }
+        for (i = 0; i < nij_src; ++i) {
+            point* p;
+
+            /*
+             * do not use the first and last columns
+             */
+            if (skipfirstlast && (i % ni_src == 0 || i % ni_src == ni_src - 1))
+                continue;
+
+            if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
+                if (have_polar_south)
+                    goto skip_south_mask;
+                else
+                    have_polar_south = 1;
+            }
+            p = &points_south[npoint];
+            p->x = xsrc_south[i];
+            p->y = ysrc_south[i];
+            p->z = nksrc[i];
+            npoint_south++;
+          skip_south_mask:
+            if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
+                if (have_polar_north)
+                    goto skip_north_mask;
+                else
+                    have_polar_north = 1;
+            }
+            p = &points_north[npoint];
+            p->x = xsrc_north[i];
+            p->y = ysrc_north[i];
+            p->z = nksrc[i];
+            npoint_north++;
+          skip_north_mask:
+            npoint++;
+        }
+
+        nkdst = calloc(nij_dst, sizeof(int));
+        d_south = delaunay_build(npoint_south, points_south, 0, NULL, 0, NULL);
+        d_north = delaunay_build(npoint_north, points_north, 0, NULL, 0, NULL);
+        interp_south = lpi_build(d_south);
+        interp_north = lpi_build(d_north);
+        for (i = 0; i < nij_dst; ++i) {
+            point p;
+
+            if (ydst[i] > 0.0) {
+                p.x = xdst_south[i];
+                p.y = ydst_south[i];
+                lpi_interpolate_point(interp_south, &p);
+            } else {
+                p.x = xdst_north[i];
+                p.y = ydst_north[i];
+                lpi_interpolate_point(interp_north, &p);
+            }
+            if (isfinite(p.z))
+                nkdst[i] = (int) (p.z + 0.5);
+        }
+        if (verbose) {
+            printf("\n");
+            fflush(stdout);
+        }
+    }
+
     if (verbose) {
         printf("  interpolating:");
         fflush(stdout);
@@ -609,8 +693,6 @@ int main(int argc, char* argv[])
     if (nk == 0)
         nk = 1;
 
-    points_south = malloc(nij_src * sizeof(point));
-    points_north = malloc(nij_src * sizeof(point));
     for (k = 0; k < nk; ++k) {
         int npoint = 0, npoint_south = 0, npoint_north = 0;
         int have_polar_south = 0, have_polar_north = 0;

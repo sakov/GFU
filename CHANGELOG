@@ -1,6 +1,11 @@
+v0.16
+  PS 20250409
+  -- REGRID_LL: added option "-t" to use (actually, interpolate) the source
+     mask for destination.
 v0.15
   PS 20250408
-  -- Fixed reading of the source mask (was skipped in some/most? cases).
+  -- Fixed reading of the source mask in regrid_ll (was skipped in some/most?
+     cases).
 v0.14
   PS 20250407
   -- Added new utility ncminmax (apps/ncminmax.c).
