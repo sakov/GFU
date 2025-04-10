@@ -1,3 +1,6 @@
+v0.17
+  PS 20250410
+  - REGRID_LL: a minor correction that appear not affecting results.
 v0.16
   PS 20250409
   -- REGRID_LL: added option "-t" to use (actually, interpolate) the source

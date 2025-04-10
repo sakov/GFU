@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.05"
+#define PROGRAM_VERSION "0.06"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -630,7 +630,7 @@ int main(int argc, char* argv[])
                 else
                     have_polar_south = 1;
             }
-            p = &points_south[npoint];
+            p = &points_south[npoint_south];
             p->x = xsrc_south[i];
             p->y = ysrc_south[i];
             p->z = nksrc[i];
@@ -642,7 +642,7 @@ int main(int argc, char* argv[])
                 else
                     have_polar_north = 1;
             }
-            p = &points_north[npoint];
+            p = &points_north[npoint_north];
             p->x = xsrc_north[i];
             p->y = ysrc_north[i];
             p->z = nksrc[i];
@@ -725,7 +725,7 @@ int main(int argc, char* argv[])
                     else
                         have_polar_south = 1;
                 }
-                p = &points_south[npoint];
+                p = &points_south[npoint_south];
                 p->x = xsrc_south[i];
                 p->y = ysrc_south[i];
                 p->z = vsrc[i];
@@ -739,7 +739,7 @@ int main(int argc, char* argv[])
                     else
                         have_polar_north = 1;
                 }
-                p = &points_north[npoint];
+                p = &points_north[npoint_north];
                 p->x = xsrc_north[i];
                 p->y = ysrc_north[i];
                 p->z = vsrc[i];
