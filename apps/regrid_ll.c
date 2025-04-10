@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.06"
+#define PROGRAM_VERSION "0.07"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -786,10 +786,11 @@ int main(int argc, char* argv[])
                         if (vdst_last != NULL)
                             vdst_last[i] = (float) p.z;
                     } else {
-                        npoint_filled_tot++;
-                        npoint_filled++;
-                        if (vdst_last != NULL && isfinite(vdst_last[i]))
+                        if (vdst_last != NULL && isfinite(vdst_last[i])) {
                             vdst[i] = vdst_last[i];
+                            npoint_filled_tot++;
+                            npoint_filled++;
+                        }
                     }
                 }
             }
@@ -806,7 +807,6 @@ int main(int argc, char* argv[])
             printf("%c", (k + 1) % 10 ? '.' : '|');
             fflush(stdout);
         } else if (verbose > 1) {
-
             printf("\n    k = %d: %d in, %d out", k, npoint, npoint_dst);
             if (npoint_filled > 0)
                 printf(" (%d filled)", npoint_filled);
