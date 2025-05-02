@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.07"
+#define PROGRAM_VERSION "0.08"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -819,6 +819,7 @@ int main(int argc, char* argv[])
         printf("  -> %s\n", fname_dst);
         if (verbose > 1)
             printf("  # cells filled = %d\n", npoint_filled_tot);
+        printf("  finished\n");
         fflush(stdout);
     }
 

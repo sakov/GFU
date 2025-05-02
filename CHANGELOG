@@ -1,3 +1,7 @@
+v0.19
+  PS 20250502
+  - NCMINMAX: a minor correction of usage.
+  - REGRID_LL: added "finished" to the log at the very end. 
 v0.18
   PS 20250410
   - REGRID_LL: a minor correction that can affect logs.

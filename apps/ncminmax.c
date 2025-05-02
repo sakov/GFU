@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.07"
+#define PROGRAM_VERSION "0.08"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
@@ -41,7 +41,7 @@ int doave = 0;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [-m <file> <var>] [-a] [-s] [-v]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [-m <file> <var>] [-a] [-s] [-v|-V]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -m <file> <var> -- set mask: either 2D with 0s and 1s;\n");
