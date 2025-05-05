@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.09"
+#define PROGRAM_VERSION "0.11"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -241,6 +241,7 @@ int main(int argc, char* argv[])
 
     char fname_dst_tmp[MAXSTRLEN];
 
+    int dosouth, donorth;
     float* xdst = NULL;
     float* ydst = NULL;
     int* nkdst = NULL;
@@ -543,11 +544,10 @@ int main(int argc, char* argv[])
 
     {
         int isrc;
-        
-#if 0
+
         for (i = ndims_dst - 1, isrc = ndims_src - 1; i >= 0; --i) {
             char dimname[NC_MAX_NAME];
-        
+
             ncw_inq_dimname(ncid_src, dimids_src[isrc], dimname);
             if (i == ndims_dst - 1) {
                 dimlen_dst[i] = ni_dst;
@@ -558,7 +558,7 @@ int main(int argc, char* argv[])
                     if (nj_src > 0) {
                         isrc--;
                     } else {
-                        ncw_inq_dimname(ncid_src, dimids_src[0], dimname);
+                        ncw_inq_dimname(ncid_src, dimids_src[ndims_src - 1], dimname);
                         if (strcmp(dimname, "i") == 0)
                             strcpy(dimname, "j");
                         else if (strcmp(dimname, "x") == 0)
@@ -569,6 +569,10 @@ int main(int argc, char* argv[])
                             strcpy(dimname, "dim1");
                     }
                 } else {
+                    if (nj_src > 0) {
+                        isrc--;
+                        ncw_inq_dimname(ncid_src, dimids_src[isrc], dimname);
+                    }
                     if (dimids_src[isrc] == unlimdimid_src) {
                         dimlen_dst[i] = 1;
                     } else {
@@ -586,55 +590,9 @@ int main(int argc, char* argv[])
                 }
                 isrc--;
             }
-        
+
             ncw_def_dim(ncid_dst, dimname, dimlen_dst[i], &dimids_dst[i]);
         }
-#else
-        for (i = ndims_dst - 1, isrc = ndims_src - 1; i >= 0; --i) {
-            char dimname[NC_MAX_NAME];
-        
-            ncw_inq_dimname(ncid_src, dimids_src[isrc], dimname);
-            if (i == ndims_dst - 1) {
-                dimlen_dst[i] = ni_dst;
-                isrc--;
-            } else if (i == ndims_dst - 2) {
-                if (nj_dst > 0) {
-                    dimlen_dst[i] = nj_dst;
-                    if (nj_src > 0) {
-                        isrc--;
-                    } else {
-                        ncw_inq_dimname(ncid_src, dimids_src[0], dimname);
-                        if (strcmp(dimname, "i") == 0)
-                            strcpy(dimname, "j");
-                        else if (strcmp(dimname, "x") == 0)
-                            strcpy(dimname, "y");
-                        else if (strcmp(dimname, "lon") == 0)
-                            strcpy(dimname, "lat");
-                        else
-                            strcpy(dimname, "dim1");
-                    }
-                } else {
-                    if (dimids_src[isrc] == unlimdimid_src) {
-                        dimlen_dst[i] = 1;
-                    } else {
-                        dimlen_dst[i] = dimlen_src[isrc];
-                        nk = dimlen_src[isrc];
-                    }
-                    isrc--;
-                }
-            } else {
-                if (dimids_src[isrc] == unlimdimid_src) {
-                    dimlen_dst[i] = 1;
-                } else {
-                    dimlen_dst[i] = dimlen_src[isrc];
-                    nk = dimlen_src[isrc];
-                }
-                isrc--;
-            }
-    
-            ncw_def_dim(ncid_dst, dimname, dimlen_dst[i], &dimids_dst[i]);
-        }
-#endif
     }
     if (verbose) {
         printf("    size = ");
@@ -653,6 +611,24 @@ int main(int argc, char* argv[])
 
     ncw_close(ncid_dst);
     ncw_close(ncid_src);
+
+    /*
+     * adjust the layer mask if necessary
+     */
+    if (nksrc != NULL && nk > 1) {
+        int doadjust = 1;
+        
+        for (i = 0; i < nij_src; ++i) {
+            if (nksrc[i] > 1) {
+                doadjust = 0;
+                break;
+            }
+        }
+        if (doadjust)
+            for (i = 0; i < nij_src; ++i)
+                if (nksrc[i] != 0)
+                    nksrc[i] = nk;
+    }
 
     if (verbose) {
         printf("  converting src lon/lat to stereographic projections:");
@@ -686,22 +662,48 @@ int main(int argc, char* argv[])
         printf("  converting dst lon/lat to stereographic projections:");
         fflush(stdout);
     }
-    xdst_south = malloc(nij_dst * sizeof(float));
-    ydst_south = malloc(nij_dst * sizeof(float));
-    xdst_north = malloc(nij_dst * sizeof(float));
-    ydst_north = malloc(nij_dst * sizeof(float));
+
+    dosouth = 0;
+    donorth = 0;
     for (i = 0; i < nij_dst; ++i) {
-        double ll[2] = { xdst[i], -ydst[i] };
-        double xyz[3];
+        if (ydst[i] > 0.0)
+            dosouth = 1;
+        else
+            donorth = 1;
+        if (dosouth && donorth)
+            break;
+    }
+    if (verbose && !donorth)
+        printf("\n    (south only)");
+    if (verbose && !dosouth)
+        printf("\n    (north only)");
 
-        ll2xyz(ll, xyz);
-        xdst_south[i] = xyz[0] / (1.0 - xyz[2]);
-        ydst_south[i] = xyz[1] / (1.0 - xyz[2]);
+    if (dosouth) {
+        xdst_south = malloc(nij_dst * sizeof(float));
+        ydst_south = malloc(nij_dst * sizeof(float));
 
-        ll[1] = ydst[i];
-        ll2xyz(ll, xyz);
-        xdst_north[i] = xyz[0] / (1.0 - xyz[2]);
-        ydst_north[i] = xyz[1] / (1.0 - xyz[2]);
+        for (i = 0; i < nij_dst; ++i) {
+            double ll[2] = { xdst[i], -ydst[i] };
+            double xyz[3];
+
+            ll2xyz(ll, xyz);
+            xdst_south[i] = xyz[0] / (1.0 - xyz[2]);
+            ydst_south[i] = xyz[1] / (1.0 - xyz[2]);
+        }
+    }
+    if (donorth) {
+        xdst_north = malloc(nij_dst * sizeof(float));
+        ydst_north = malloc(nij_dst * sizeof(float));
+
+        for (i = 0; i < nij_dst; ++i) {
+            double ll[2] = { xdst[i], ydst[i] };
+            double xyz[3];
+
+            ll[1] = ydst[i];
+            ll2xyz(ll, xyz);
+            xdst_north[i] = xyz[0] / (1.0 - xyz[2]);
+            ydst_north[i] = xyz[1] / (1.0 - xyz[2]);
+        }
     }
     free(xdst);
     if (verbose) {
@@ -709,8 +711,10 @@ int main(int argc, char* argv[])
         fflush(stdout);
     }
 
-    points_south = malloc(nij_src * sizeof(point));
-    points_north = malloc(nij_src * sizeof(point));
+    if (dosouth)
+        points_south = malloc(nij_src * sizeof(point));
+    if (donorth)
+        points_north = malloc(nij_src * sizeof(point));
 
     if (transfermask && nkdst == NULL) {
         int npoint = 0, npoint_south = 0, npoint_north = 0;
@@ -733,38 +737,46 @@ int main(int argc, char* argv[])
             if (skipfirstlast && (i % ni_src == 0 || i % ni_src == ni_src - 1))
                 continue;
 
-            if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
-                if (have_polar_south)
-                    goto skip_south_mask;
-                else
-                    have_polar_south = 1;
+            if (dosouth) {
+                if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
+                    if (have_polar_south)
+                        goto skip_south_mask;
+                    else
+                        have_polar_south = 1;
+                }
+                p = &points_south[npoint_south];
+                p->x = xsrc_south[i];
+                p->y = ysrc_south[i];
+                p->z = nksrc[i];
+                npoint_south++;
             }
-            p = &points_south[npoint_south];
-            p->x = xsrc_south[i];
-            p->y = ysrc_south[i];
-            p->z = nksrc[i];
-            npoint_south++;
           skip_south_mask:
-            if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
-                if (have_polar_north)
-                    goto skip_north_mask;
-                else
-                    have_polar_north = 1;
+            if (donorth) {
+                if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
+                    if (have_polar_north)
+                        goto skip_north_mask;
+                    else
+                        have_polar_north = 1;
+                }
+                p = &points_north[npoint_north];
+                p->x = xsrc_north[i];
+                p->y = ysrc_north[i];
+                p->z = nksrc[i];
+                npoint_north++;
             }
-            p = &points_north[npoint_north];
-            p->x = xsrc_north[i];
-            p->y = ysrc_north[i];
-            p->z = nksrc[i];
-            npoint_north++;
           skip_north_mask:
             npoint++;
         }
 
         nkdst = calloc(nij_dst, sizeof(int));
-        d_south = delaunay_build(npoint_south, points_south, 0, NULL, 0, NULL);
-        d_north = delaunay_build(npoint_north, points_north, 0, NULL, 0, NULL);
-        interp_south = lpi_build(d_south);
-        interp_north = lpi_build(d_north);
+        if (dosouth) {
+            d_south = delaunay_build(npoint_south, points_south, 0, NULL, 0, NULL);
+            interp_south = lpi_build(d_south);
+        }
+        if (donorth) {
+            d_north = delaunay_build(npoint_north, points_north, 0, NULL, 0, NULL);
+            interp_north = lpi_build(d_north);
+        }
         for (i = 0; i < nij_dst; ++i) {
             point p;
 
@@ -779,6 +791,14 @@ int main(int argc, char* argv[])
             }
             if (isfinite(p.z))
                 nkdst[i] = (int) (p.z + 0.5);
+        }
+        if (interp_south != NULL) {
+            lpi_destroy(interp_south);
+            delaunay_destroy(d_south);
+        }
+        if (interp_north != NULL) {
+            lpi_destroy(interp_north);
+            delaunay_destroy(d_north);
         }
         if (verbose) {
             printf("\n");
@@ -827,32 +847,36 @@ int main(int argc, char* argv[])
             if (!isfinite(vsrc[i]))
                 continue;
 
-            if (isfinite(xsrc_south[i]) && isfinite(ysrc_south[i])) {
-                if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
-                    if (have_polar_south)
-                        goto skip_south;
-                    else
-                        have_polar_south = 1;
+            if (dosouth) {
+                if (isfinite(xsrc_south[i]) && isfinite(ysrc_south[i])) {
+                    if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
+                        if (have_polar_south)
+                            goto skip_south;
+                        else
+                            have_polar_south = 1;
+                    }
+                    p = &points_south[npoint_south];
+                    p->x = xsrc_south[i];
+                    p->y = ysrc_south[i];
+                    p->z = vsrc[i];
+                    npoint_south++;
                 }
-                p = &points_south[npoint_south];
-                p->x = xsrc_south[i];
-                p->y = ysrc_south[i];
-                p->z = vsrc[i];
-                npoint_south++;
             }
           skip_south:
-            if (isfinite(xsrc_north[i]) && isfinite(ysrc_north[i])) {
-                if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
-                    if (have_polar_north)
-                        goto skip_north;
-                    else
-                        have_polar_north = 1;
+            if (donorth) {
+                if (isfinite(xsrc_north[i]) && isfinite(ysrc_north[i])) {
+                    if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
+                        if (have_polar_north)
+                            goto skip_north;
+                        else
+                            have_polar_north = 1;
+                    }
+                    p = &points_north[npoint_north];
+                    p->x = xsrc_north[i];
+                    p->y = ysrc_north[i];
+                    p->z = vsrc[i];
+                    npoint_north++;
                 }
-                p = &points_north[npoint_north];
-                p->x = xsrc_north[i];
-                p->y = ysrc_north[i];
-                p->z = vsrc[i];
-                npoint_north++;
             }
           skip_north:
             npoint++;
@@ -867,10 +891,19 @@ int main(int argc, char* argv[])
             goto finalise_level;
 
         {
-            delaunay* d_south = delaunay_build(npoint_south, points_south, 0, NULL, 0, NULL);
-            delaunay* d_north = delaunay_build(npoint_north, points_north, 0, NULL, 0, NULL);
-            void* interp_south = lpi_build(d_south);
-            void* interp_north = lpi_build(d_north);
+            delaunay* d_south = NULL;
+            delaunay* d_north = NULL;
+            void* interp_south = NULL;
+            void* interp_north = NULL;
+
+            if (dosouth) {
+                d_south = delaunay_build(npoint_south, points_south, 0, NULL, 0, NULL);
+                interp_south = lpi_build(d_south);
+            }
+            if (donorth) {
+                d_north = delaunay_build(npoint_north, points_north, 0, NULL, 0, NULL);
+                interp_north = lpi_build(d_north);
+            }
 
             for (i = 0; i < nij_dst; ++i) {
                 point p;
@@ -903,10 +936,14 @@ int main(int argc, char* argv[])
                     }
                 }
             }
-            lpi_destroy(interp_south);
-            delaunay_destroy(d_south);
-            lpi_destroy(interp_north);
-            delaunay_destroy(d_north);
+            if (interp_south != NULL) {
+                lpi_destroy(interp_south);
+                delaunay_destroy(d_south);
+            }
+            if (interp_north != NULL) {
+                lpi_destroy(interp_north);
+                delaunay_destroy(d_north);
+            }
         }
 
       finalise_level:

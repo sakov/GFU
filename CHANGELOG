@@ -1,7 +1,16 @@
+v0.21
+  PS 20250505
+  - REGRID_LL: modified to make it possible using 2D mask (0 and 1s) rather
+      than 3D mask (number of watered layers).
+v0.21
+  PS 20250505
+  - REGRID_LL: to increase speed when interpolating from global to regional
+      grids - skip building interpolator for south or north projection when it
+      is not required.
 v0.20
-  PS 20250502
+  PS 20250505
   - REGRID_LL: modified code to make it possible interpolation between
-      structured and unstructered bgrids.
+      structured and unstructered grids.
   - NCMINMAX: a minor improvement in parse_command_line().
 v0.19
   PS 20250502
