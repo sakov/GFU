@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.08"
+#define PROGRAM_VERSION "0.09"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -219,8 +219,6 @@ int main(int argc, char* argv[])
     int transfermask = 0;
     int verbose = VERBOSE_DEF;
 
-    int gridtype = GRIDTYPE_UNDEF;
-
     int npoint_filled_tot = 0;
 
     int ncid_src;
@@ -254,6 +252,7 @@ int main(int argc, char* argv[])
 
     int ncid_dst;
     int varid_dst;
+    int ndims_dst;
     size_t dimlen_dst[4];
     int dimids_dst[4];
     size_t ni_dst = 0, nj_dst = 0, nij_dst = 0;
@@ -318,6 +317,7 @@ int main(int argc, char* argv[])
         fflush(stdout);
     }
     {
+        int gridtype = GRIDTYPE_UNDEF;
         int ncid;
         int varid_x, varid_y;
         size_t dimlen[2];
@@ -397,6 +397,17 @@ int main(int argc, char* argv[])
             ncw_get_var_int(ncid, varid, nksrc);
         }
         ncw_close(ncid);
+
+        if (verbose) {
+            if (gridtype == GRIDTYPE_CURV)
+                printf("    type = curvilinear\n");
+            else if (gridtype == GRIDTYPE_RECT)
+                printf("    type = rectangular\n");
+            else if (gridtype == GRIDTYPE_VECT)
+                printf("    type = vector (unstructured)\n");
+            else
+                quit("programming error");
+        }
     }
 
     if (verbose) {
@@ -411,6 +422,7 @@ int main(int argc, char* argv[])
         fflush(stdout);
     }
     {
+        int gridtype = GRIDTYPE_UNDEF;
         int ncid;
         int varid_x, varid_y;
         size_t dimlen[2];
@@ -421,6 +433,7 @@ int main(int argc, char* argv[])
         ncw_inq_varid(ncid, yname_dst, &varid_y);
         ncw_inq_varndims(ncid, varid_x, &ndims);
         if (ndims == 2) {
+            gridtype = GRIDTYPE_CURV;
             ncw_inq_vardims(ncid, varid_x, 2, NULL, dimlen);
             ni_dst = dimlen[1];
             nj_dst = dimlen[0];
@@ -432,6 +445,7 @@ int main(int argc, char* argv[])
         } else if (ndims == 1) {
             ncw_inq_vardims(ncid, varid_x, 1, NULL, &dimlen[1]);
             ncw_inq_vardims(ncid, varid_y, 1, NULL, &dimlen[0]);
+            gridtype = (dimlen[0] != dimlen[1]) ? GRIDTYPE_RECT : GRIDTYPE_VECT;
             if (gridtype != GRIDTYPE_VECT) {
                 int ii, j;
 
@@ -452,8 +466,6 @@ int main(int argc, char* argv[])
                     for (i = 0; i < ni_dst; ++i, ++ii)
                         ydst[ii] = ydst[j * ni_dst];
             } else if (gridtype == GRIDTYPE_VECT) {
-                if (dimlen[0] != dimlen[1])
-                    quit("source grid is unstructured; destination grid is not (coordinates \"%s\" and \"%s\" of different length)", xname_dst, yname_dst);
                 ni_dst = dimlen[0];
                 nj_dst = 0;
                 nij_dst = ni_dst;
@@ -483,6 +495,17 @@ int main(int argc, char* argv[])
             ncw_get_var_int(ncid, varid, nkdst);
         }
         ncw_close(ncid);
+
+        if (verbose) {
+            if (gridtype == GRIDTYPE_CURV)
+                printf("    type = curvilinear\n");
+            else if (gridtype == GRIDTYPE_RECT)
+                printf("    type = rectangular\n");
+            else if (gridtype == GRIDTYPE_VECT)
+                printf("    type = vector (unstructured)\n");
+            else
+                quit("programming error");
+        }
     }
 
     strcpy(fname_dst_tmp, fname_dst);
@@ -509,34 +532,120 @@ int main(int argc, char* argv[])
         }
     }
     /*
-     * define dimensions
+     * define dst dimensions
      */
-    for (i = 0; i < ndims_src; ++i) {
-        char dimname[NC_MAX_NAME];
+    if ((nj_src == 0) == (nj_dst == 0))
+        ndims_dst = ndims_src;
+    else if (nj_src > 0)
+        ndims_dst = ndims_src - 1;
+    else
+        ndims_dst = ndims_src + 1;
 
-        ncw_inq_dimname(ncid_src, dimids_src[i], dimname);
-        if (ndims_src - i == 1)
-            dimlen_dst[i] = ni_dst;
-        else if (ndims_src - i == 2)
-            dimlen_dst[i] = nj_dst;
-        else if (dimids_src[i] == unlimdimid_src)
-            dimlen_dst[i] = 1;
-        else {
-            nk = dimlen_src[i];
-            dimlen_dst[i] = dimlen_src[i];
+    {
+        int isrc;
+        
+#if 0
+        for (i = ndims_dst - 1, isrc = ndims_src - 1; i >= 0; --i) {
+            char dimname[NC_MAX_NAME];
+        
+            ncw_inq_dimname(ncid_src, dimids_src[isrc], dimname);
+            if (i == ndims_dst - 1) {
+                dimlen_dst[i] = ni_dst;
+                isrc--;
+            } else if (i == ndims_dst - 2) {
+                if (nj_dst > 0) {
+                    dimlen_dst[i] = nj_dst;
+                    if (nj_src > 0) {
+                        isrc--;
+                    } else {
+                        ncw_inq_dimname(ncid_src, dimids_src[0], dimname);
+                        if (strcmp(dimname, "i") == 0)
+                            strcpy(dimname, "j");
+                        else if (strcmp(dimname, "x") == 0)
+                            strcpy(dimname, "y");
+                        else if (strcmp(dimname, "lon") == 0)
+                            strcpy(dimname, "lat");
+                        else
+                            strcpy(dimname, "dim1");
+                    }
+                } else {
+                    if (dimids_src[isrc] == unlimdimid_src) {
+                        dimlen_dst[i] = 1;
+                    } else {
+                        dimlen_dst[i] = dimlen_src[isrc];
+                        nk = dimlen_src[isrc];
+                    }
+                    isrc--;
+                }
+            } else {
+                if (dimids_src[isrc] == unlimdimid_src) {
+                    dimlen_dst[i] = 1;
+                } else {
+                    dimlen_dst[i] = dimlen_src[isrc];
+                    nk = dimlen_src[isrc];
+                }
+                isrc--;
+            }
+        
+            ncw_def_dim(ncid_dst, dimname, dimlen_dst[i], &dimids_dst[i]);
         }
-        ncw_def_dim(ncid_dst, dimname, dimlen_dst[i], &dimids_dst[i]);
+#else
+        for (i = ndims_dst - 1, isrc = ndims_src - 1; i >= 0; --i) {
+            char dimname[NC_MAX_NAME];
+        
+            ncw_inq_dimname(ncid_src, dimids_src[isrc], dimname);
+            if (i == ndims_dst - 1) {
+                dimlen_dst[i] = ni_dst;
+                isrc--;
+            } else if (i == ndims_dst - 2) {
+                if (nj_dst > 0) {
+                    dimlen_dst[i] = nj_dst;
+                    if (nj_src > 0) {
+                        isrc--;
+                    } else {
+                        ncw_inq_dimname(ncid_src, dimids_src[0], dimname);
+                        if (strcmp(dimname, "i") == 0)
+                            strcpy(dimname, "j");
+                        else if (strcmp(dimname, "x") == 0)
+                            strcpy(dimname, "y");
+                        else if (strcmp(dimname, "lon") == 0)
+                            strcpy(dimname, "lat");
+                        else
+                            strcpy(dimname, "dim1");
+                    }
+                } else {
+                    if (dimids_src[isrc] == unlimdimid_src) {
+                        dimlen_dst[i] = 1;
+                    } else {
+                        dimlen_dst[i] = dimlen_src[isrc];
+                        nk = dimlen_src[isrc];
+                    }
+                    isrc--;
+                }
+            } else {
+                if (dimids_src[isrc] == unlimdimid_src) {
+                    dimlen_dst[i] = 1;
+                } else {
+                    dimlen_dst[i] = dimlen_src[isrc];
+                    nk = dimlen_src[isrc];
+                }
+                isrc--;
+            }
+    
+            ncw_def_dim(ncid_dst, dimname, dimlen_dst[i], &dimids_dst[i]);
+        }
+#endif
     }
     if (verbose) {
         printf("    size = ");
-        for (i = 0; i < ndims_src; ++i)
-            printf("%zu%s", dimlen_dst[i], i < ndims_src - 1 ? " x " : "\n");
+        for (i = 0; i < ndims_dst; ++i)
+            printf("%zu%s", dimlen_dst[i], i < ndims_dst - 1 ? " x " : "\n");
         fflush(stdout);
     }
     /*
      * define the variable
      */
-    ncw_def_var(ncid_dst, varname, nctype, ndims_src, dimids_dst, &varid_dst);
+    ncw_def_var(ncid_dst, varname, nctype, ndims_dst, dimids_dst, &varid_dst);
     ncw_copy_atts(ncid_src, varid_src, ncid_dst, varid_dst);
 
     if (deflate > 0)

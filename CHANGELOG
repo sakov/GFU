@@ -1,3 +1,8 @@
+v0.20
+  PS 20250502
+  - REGRID_LL: modified code to make it possible interpolation between
+      structured and unstructered bgrids.
+  - NCMINMAX: a minor improvement in parse_command_line().
 v0.19
   PS 20250502
   - NCMINMAX: a minor correction of usage.

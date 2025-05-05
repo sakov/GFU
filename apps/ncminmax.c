@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.08"
+#define PROGRAM_VERSION "0.09"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
@@ -101,7 +101,8 @@ static void parse_commandline(int argc, char* argv[], char** fname, char** varna
         } else if (*fname == NULL) {
             *fname = argv[i];
             i++;
-        } else if (*varname == NULL) {
+            if (i == argc && argv[i][0] == '-')
+                quit("no variable name specified");
             *varname = argv[i];
             i++;
         } else
