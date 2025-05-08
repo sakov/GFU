@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.11"
+#define PROGRAM_VERSION "0.12"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -281,6 +281,10 @@ int main(int argc, char* argv[])
         quit("no input grid file specified");
     if (grdname_dst == NULL)
         quit("no output grid file specified");
+    if (transfermask && nkname_src == NULL)
+        quit("can not transfer source mask to destination (\"-t\") because source mask is not specified (\"<numlayers>\")");
+    if (transfermask && nkname_dst != NULL)
+        quit("can not both specify destination mask (\"%s\") and ask to transfer it from the source grid (\"-t\")", nkname_dst);
 
     if (verbose) {
         printf("  src = \"%s\"\n", fname_src);
@@ -479,8 +483,6 @@ int main(int argc, char* argv[])
         if (nkname_dst != NULL) {
             int varid;
 
-            if (transfermask)
-                quit("can not both define destination mask and ask to transfer it from the source grid");
             ncw_inq_varid(ncid, nkname_dst, &varid);
             if (nj_dst > 0) {
                 size_t dimlen[2] = { nj_dst, ni_dst };

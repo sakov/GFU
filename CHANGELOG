@@ -1,3 +1,7 @@
+v0.24
+  PS 20250509
+  - REGRID_LL: added a check on consistency of arguments whith the option "-t"
+      (src mask must be specified and dst mask must not).
 v0.23
   PS 20250508
   - Added new utility NCMASK. Its purpose is filling the "land" data with
