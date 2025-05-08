@@ -1,4 +1,11 @@
-v0.21
+v0.23
+  PS 20250508
+  - Added new utility NCMASK. Its purpose is filling the "land" data with
+    0s or NaNs (NetCDF fill values). Note: at the moment works with variables of
+    type float or double (NC_FLOAT/NC_DOUBLE) only.
+  - NCMINMAX: cosmetic changes.
+  - ncutils.c, ncutils.h: added ncu_writefield_double().
+v0.22
   PS 20250505
   - REGRID_LL: modified to make it possible using 2D mask (0 and 1s) rather
       than 3D mask (number of watered layers).

@@ -37,6 +37,7 @@ void ncu_readvardouble(int ncid, int varid, size_t n, double v[]);
 void ncu_readfield(char fname[], char varname[], int k, int ni, int nj, int nk, float* v);
 void ncu_writefield(char fname[], char varname[], int k, int ni, int nj, int nk, float* v);
 void ncu_readfield_double(char fname[], char varname[], int k, int ni, int nj, int nk, double* v);
+void ncu_writefield_double(char fname[], char varname[], int k, int ni, int nj, int nk, double* v);
 
 #define _NCUTILS_H
 #endif

@@ -617,7 +617,7 @@ int main(int argc, char* argv[])
      */
     if (nksrc != NULL && nk > 1) {
         int doadjust = 1;
-        
+
         for (i = 0; i < nij_src; ++i) {
             if (nksrc[i] > 1) {
                 doadjust = 0;

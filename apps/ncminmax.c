@@ -46,7 +46,7 @@ static void usage(int status)
     printf("  Options:\n");
     printf("    -m <file> <var> -- set mask: either 2D with 0s and 1s;\n");
     printf("       or 2D with number of valid layers in a column;\n");
-    printf("       or of the size of the variable with 0s and 1s\n");
+    printf("       or (for 1D or 2D variables) of the size of the variable with 0s and 1s\n");
     printf("    -a -- also report average\n");
     printf("    -s -- strict (no missing values allowed)\n");
     printf("    -v -- verbose (more info) | print version and exit\n");
@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
         ncw_inq_varid(mncid, mvarname, &mvarid);
         msize = ncw_get_varsize(mncid, mvarid);
         if (msize != size / nk)
-            quit("mask size %zu is not equal layer size %zu", msize, size / nk);
+            quit("mask size %zu is not equal to layer size %zu", msize, size / nk);
         mask = calloc(msize, sizeof(int));
         ncw_get_var_int(mncid, mvarid, mask);
         ncw_close(mncid);

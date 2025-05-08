@@ -22,7 +22,8 @@ bin/regrid_ll\
 bin/nccat\
 bin/ncave\
 bin/ncd2f\
-bin/ncminmax
+bin/ncminmax\
+bin/ncmask
 
 SRC_REGRID_LL =\
 apps/regrid_ll.c\
@@ -86,6 +87,18 @@ common/ncutils.h\
 common/utils.h\
 common/version.h
 
+SRC_NCMASK =\
+apps/ncmask.c\
+common/ncutils.c\
+common/utils.c\
+common/ncw.c
+
+HDR_NCMASK =\
+common/ncw.h\
+common/ncutils.h\
+common/utils.h\
+common/version.h
+
 default: bin $(PROGRAMS)
 
 bin:
@@ -105,6 +118,9 @@ bin/ncd2f: Makefile $(SRC_NCD2F) $(HDR_NCD2F)
 
 bin/ncminmax: Makefile $(SRC_NCMINMAX) $(HDR_NCMINMAX)
 	$(CC) $(CFLAGS) $(INCS) -o $@ $(SRC_NCMINMAX) $(LIBS)
+
+bin/ncmask: Makefile $(SRC_NCMASK) $(HDR_NCMASK)
+	$(CC) $(CFLAGS) $(INCS) -o $@ $(SRC_NCMASK) $(LIBS)
 
 clean:
 	rm -f bin/*

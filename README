@@ -29,6 +29,9 @@ NCD2F
 NCMINMAX
   Finds minimal and maximal values of a variable in a NetCDF file.
 
+NCMASK
+  Fills the "land" data with 0s or NaNs (NetCDF fill values).
+
 LICENSE
 
 GFU is a public software. See LICENSE for details.
