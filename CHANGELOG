@@ -1,12 +1,16 @@
+v0.25
+  PS 20250509
+  - REGRID_LL: added an option "-k k1 [k2]" to interpolate specified layers
+      only.
 v0.24
   PS 20250509
   - REGRID_LL: added a check on consistency of arguments whith the option "-t"
       (src mask must be specified and dst mask must not).
 v0.23
   PS 20250508
-  - Added new utility NCMASK. Its purpose is filling the "land" data with
-    0s or NaNs (NetCDF fill values). Note: at the moment works with variables of
-    type float or double (NC_FLOAT/NC_DOUBLE) only.
+  - Added new utility NCMASK. Its purpose is filling the "land" data with 0s or
+      NaNs (NetCDF fill values). Note: at the moment works with variables of
+      type float or double (NC_FLOAT/NC_DOUBLE) only.
   - NCMINMAX: cosmetic changes.
   - ncutils.c, ncutils.h: added ncu_writefield_double().
 v0.22

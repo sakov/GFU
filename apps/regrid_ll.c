@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.12"
+#define PROGRAM_VERSION "0.13"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -59,7 +59,7 @@
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-d <level>] [-m] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-k k1 [k2]] [-d <level>] [-m] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src> -- source file\n");
@@ -67,6 +67,7 @@ static void usage(int status)
     printf("    -v <varname> -- variable to interpolate\n");
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
+    printf("    -k k1 [k2] -- interpolate from level k1 to level k2 only\n");
     printf("    -d <level> -- deflation level (default = as in source)\n");
     printf("    -m -- flag: use NaN for filling (default = use zero)\n");
     printf("    -n -- flag: use the deepest valid value for filling the rest of the column\n");
@@ -80,7 +81,7 @@ static void usage(int status)
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* transfermask, int* verbose)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* k1, int* k2, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* transfermask, int* verbose)
 {
     int i;
 
@@ -153,6 +154,16 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
                 *nkname_dst = argv[i];
                 i++;
             }
+        } else if (strcmp(&argv[i][1], "k") == 0) {
+            i++;
+            if (i == argc || argv[i][0] == '-')
+                quit("no level level found after \"-k\"");
+            *k1 = atoi(argv[i]);
+            i++;
+            if (i < argc || argv[i][0] != '-') {
+                *k2 = atoi(argv[i]);
+                i++;
+            }
         } else if (strcmp(&argv[i][1], "d") == 0) {
             i++;
             if (i == argc || argv[i][0] == '-')
@@ -212,6 +223,7 @@ int main(int argc, char* argv[])
     char* xname_dst = NULL;
     char* yname_dst = NULL;
     char* nkname_dst = NULL;
+    int k1 = -1, k2 = -1;
     int deflate = 0;
     int propagatedown = 0;
     int nanfill = 0;
@@ -269,7 +281,7 @@ int main(int argc, char* argv[])
 
     int i, k;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &deflate, &propagatedown, &nanfill, &skipfirstlast, &transfermask, &verbose);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &k1, &k2, &deflate, &propagatedown, &nanfill, &skipfirstlast, &transfermask, &verbose);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -285,6 +297,8 @@ int main(int argc, char* argv[])
         quit("can not transfer source mask to destination (\"-t\") because source mask is not specified (\"<numlayers>\")");
     if (transfermask && nkname_dst != NULL)
         quit("can not both specify destination mask (\"%s\") and ask to transfer it from the source grid (\"-t\")", nkname_dst);
+    if (k1 >= 0 && k2 >= 0 && k2 < k1)
+        quit("nothing to do: k2 < k1");
 
     if (verbose) {
         printf("  src = \"%s\"\n", fname_src);
@@ -311,6 +325,14 @@ int main(int argc, char* argv[])
         printf("    size = ");
         for (i = 0; i < ndims_src; ++i)
             printf("%zu%s", dimlen_src[i], i < ndims_src - 1 ? " x " : "\n");
+        if (k1 >= 0) {
+            if (k2 >= 0)
+                printf("    extracting layers %d <= k <= %d\n", k1, k2);
+            else {
+                k2 = k1;
+                printf("    extracting layer %d\n", k1);
+            }
+        }
         fflush(stdout);
     }
 
@@ -578,8 +600,13 @@ int main(int argc, char* argv[])
                     if (dimids_src[isrc] == unlimdimid_src) {
                         dimlen_dst[i] = 1;
                     } else {
-                        dimlen_dst[i] = dimlen_src[isrc];
                         nk = dimlen_src[isrc];
+                        if (k1 < 0) {
+                            dimlen_dst[i] = dimlen_src[isrc];
+                            k1 = 0;
+                            k2 = nk - 1;
+                        } else
+                            dimlen_dst[i] = k2 - k1 + 1;
                     }
                     isrc--;
                 }
@@ -587,8 +614,13 @@ int main(int argc, char* argv[])
                 if (dimids_src[isrc] == unlimdimid_src) {
                     dimlen_dst[i] = 1;
                 } else {
-                    dimlen_dst[i] = dimlen_src[isrc];
                     nk = dimlen_src[isrc];
+                    if (k1 < 0) {
+                        dimlen_dst[i] = dimlen_src[isrc];
+                        k1 = 0;
+                        k2 = nk - 1;
+                    } else
+                        dimlen_dst[i] = k2 - k1 + 1;
                 }
                 isrc--;
             }
@@ -824,7 +856,7 @@ int main(int argc, char* argv[])
     if (nk == 0)
         nk = 1;
 
-    for (k = 0; k < nk; ++k) {
+    for (k = k1; k <= k2; ++k) {
         int npoint = 0, npoint_south = 0, npoint_north = 0;
         int have_polar_south = 0, have_polar_north = 0;
 
@@ -950,7 +982,7 @@ int main(int argc, char* argv[])
 
       finalise_level:
 
-        ncu_writefield(fname_dst_tmp, varname, k, ni_dst, nj_dst, nk, vdst);
+        ncu_writefield(fname_dst_tmp, varname, k - k1, ni_dst, nj_dst, k2 - k1 + 1, vdst);
         if (verbose == 1) {
             printf("%c", (k + 1) % 10 ? '.' : '|');
             fflush(stdout);
