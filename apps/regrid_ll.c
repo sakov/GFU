@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.13"
+#define PROGRAM_VERSION "0.14"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -68,10 +68,12 @@ static void usage(int status)
     printf("    -gi <src grid> <lon> <lat> [<numlayers>] -- source grid\n");
     printf("    -go <dst grid> <lon> <lat> [<numlayers>] -- destination grid\n");
     printf("    -k k1 [k2] -- interpolate from level k1 to level k2 only\n");
+    printf("    -b -- flag: do not use the first and last columns of the source field\n");
     printf("    -d <level> -- deflation level (default = as in source)\n");
     printf("    -m -- flag: use NaN for filling (default = use zero)\n");
     printf("    -n -- flag: use the deepest valid value for filling the rest of the column\n");
-    printf("    -s -- flag: do not use the first and last columns of the source field\n");
+    printf("    -s -- flag: do not use data from the opposite hemisphere (e.g. when\n");
+    printf("          interpolating sea-ice data)\n");
     printf("    -t -- geographically apply source mask to destination\n");
     printf("          (e.g. when interpolating from ORCA to geographic grids)\n");
     printf("    -V <level> -- set verbosity to 0, 1, or 2 (default = 1)\n");
@@ -81,7 +83,7 @@ static void usage(int status)
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* k1, int* k2, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* transfermask, int* verbose)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, char** varname, char** grdname_src, char** xname_src, char** yname_src, char** nkname_src, char** grdname_dst, char** xname_dst, char** yname_dst, char** nkname_dst, int* k1, int* k2, int* deflate, int* propagatedown, int* nanfill, int* skipfirstlast, int* transfermask, int* separate, int* verbose)
 {
     int i;
 
@@ -176,17 +178,20 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
                 quit("no verbosity level found after \"-V\"");
             *verbose = atoi(argv[i]);
             i++;
+        } else if (strcmp(&argv[i][1], "b") == 0) {
+            *skipfirstlast = 1;
+            i++;
         } else if (strcmp(&argv[i][1], "m") == 0) {
             *nanfill = 1;
             i++;
         } else if (strcmp(&argv[i][1], "n") == 0) {
             *propagatedown = 1;
             i++;
-        } else if (strcmp(&argv[i][1], "s") == 0) {
-            *skipfirstlast = 1;
-            i++;
         } else if (strcmp(&argv[i][1], "t") == 0) {
             *transfermask = 1;
+            i++;
+        } else if (strcmp(&argv[i][1], "s") == 0) {
+            *separate = 1;
             i++;
         } else
             quit("unknown option \"%s\"", argv[i]);
@@ -229,6 +234,7 @@ int main(int argc, char* argv[])
     int nanfill = 0;
     int skipfirstlast = 0;
     int transfermask = 0;
+    int separate = 0;
     int verbose = VERBOSE_DEF;
 
     int npoint_filled_tot = 0;
@@ -281,7 +287,7 @@ int main(int argc, char* argv[])
 
     int i, k;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &k1, &k2, &deflate, &propagatedown, &nanfill, &skipfirstlast, &transfermask, &verbose);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &varname, &grdname_src, &xname_src, &yname_src, &nkname_src, &grdname_dst, &xname_dst, &yname_dst, &nkname_dst, &k1, &k2, &deflate, &propagatedown, &nanfill, &skipfirstlast, &transfermask, &separate, &verbose);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -676,14 +682,24 @@ int main(int argc, char* argv[])
         double ll[2] = { xsrc[i], -ysrc[i] };
         double xyz[3];
 
-        ll2xyz(ll, xyz);
-        xsrc_south[i] = xyz[0] / (1.0 - xyz[2]);
-        ysrc_south[i] = xyz[1] / (1.0 - xyz[2]);
+        if (!separate || ysrc[i] > 0.0) {
+            ll2xyz(ll, xyz);
+            xsrc_south[i] = xyz[0] / (1.0 - xyz[2]);
+            ysrc_south[i] = xyz[1] / (1.0 - xyz[2]);
+        } else {
+            xsrc_south[i] = NAN;
+            ysrc_south[i] = NAN;
+        }
 
-        ll[1] = ysrc[i];
-        ll2xyz(ll, xyz);
-        xsrc_north[i] = xyz[0] / (1.0 - xyz[2]);
-        ysrc_north[i] = xyz[1] / (1.0 - xyz[2]);
+        if (!separate || ysrc[i] < 0.0) {
+            ll[1] = ysrc[i];
+            ll2xyz(ll, xyz);
+            xsrc_north[i] = xyz[0] / (1.0 - xyz[2]);
+            ysrc_north[i] = xyz[1] / (1.0 - xyz[2]);
+        } else {
+            xsrc_north[i] = NAN;
+            ysrc_north[i] = NAN;
+        }
     }
     free(xsrc);
     free(ysrc);
@@ -771,7 +787,7 @@ int main(int argc, char* argv[])
             if (skipfirstlast && (i % ni_src == 0 || i % ni_src == ni_src - 1))
                 continue;
 
-            if (dosouth) {
+            if (dosouth && isfinite(xsrc_south[i])) {
                 if (hypot(xsrc_south[i], ysrc_south[i]) < POLAR_EPS) {
                     if (have_polar_south)
                         goto skip_south_mask;
@@ -785,7 +801,7 @@ int main(int argc, char* argv[])
                 npoint_south++;
             }
           skip_south_mask:
-            if (donorth) {
+            if (donorth && isfinite(xsrc_north[i])) {
                 if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
                     if (have_polar_north)
                         goto skip_north_mask;
@@ -853,8 +869,11 @@ int main(int argc, char* argv[])
             vdst_last[i] = NAN;
     }
 
-    if (nk == 0)
+    if (nk == 0) {
         nk = 1;
+        k1 = 0;
+        k2 = 0;
+    }
 
     for (k = k1; k <= k2; ++k) {
         int npoint = 0, npoint_south = 0, npoint_north = 0;

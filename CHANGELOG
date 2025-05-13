@@ -1,3 +1,9 @@
+v0.26
+  PS 20250513
+  - REGRID_LL: added a new option "-s": do not use data from opposite
+    (north/south) hemisphere. Can be useful when e.g. interpolating sea-ice
+    data.
+  - REGRID_LL: moved option "-s" to "-b".
 v0.25
   PS 20250509
   - REGRID_LL: added an option "-k k1 [k2]" to interpolate specified layers
