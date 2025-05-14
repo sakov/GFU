@@ -28,7 +28,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncmask"
-#define PROGRAM_VERSION "0.02"
+#define PROGRAM_VERSION "0.03"
 #define VERBOSE_DEF 1
 
 #define MASKTYPE_NONE 0
@@ -45,8 +45,8 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [0|{nan|fillvalue}] -m <file> <var> [-v]\n", PROGRAM_NAME);
-    printf("         %s -v [0|1|2]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [0|{nan|fillvalue}] -m <file> <var> [-v {0|1|}]\n", PROGRAM_NAME);
+    printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    <file> <var> [0|{nan|fillvalue}] - data file, variable and the fill value\n");
     printf("       (default = 0)\n");
