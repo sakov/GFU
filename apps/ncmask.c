@@ -21,6 +21,7 @@
 #include <math.h>
 #include <assert.h>
 #include <float.h>
+#include <stdint.h>
 #include <unistd.h>
 #include "version.h"
 #include "ncw.h"
@@ -28,7 +29,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncmask"
-#define PROGRAM_VERSION "0.03"
+#define PROGRAM_VERSION "0.04"
 #define VERBOSE_DEF 1
 
 #define MASKTYPE_NONE 0
@@ -39,13 +40,15 @@
 #define FILL_NAN 1
 #define FILL_FILLVALUE 2
 
+#define MAXNDIMS 4
+
 int verbose = VERBOSE_DEF;
 
 /**
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [0|{nan|fillvalue}] -m <file> <var> [-v {0|1|2}]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [0|nan|fillvalue] -m <file> <var> [-v {0|1|2}]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    <file> <var> [0|{nan|fillvalue}] - data file, variable and the fill value\n");
@@ -128,11 +131,14 @@ int main(int argc, char* argv[])
     char* mvarname = NULL;
     int fill = FILL_ZERO;
 
-    int ncid = -1, varid = -1;
+    int ncid = -1, varid = -1, ndims = -1;
     nc_type vtype;
-    size_t i, size, slabsize;
-    float fillvalue_f = NAN;
-    double fillvalue_d = NAN;
+    size_t dimlens[NC_MAX_DIMS];
+    int ndims_essential = -1;
+    int dimids_essential[MAXNDIMS];
+
+    void* fillvalue = NULL;
+    int64_t zerovalue = 0;
 
     int mncid = -1, mvarid = -1;
     size_t msize;
@@ -141,21 +147,14 @@ int main(int argc, char* argv[])
     int* mask = NULL;
     int masktype = MASKTYPE_NONE;
 
-    int layered;
-    int nk, k;
+    int ni = 1, nj = 1, nk = 1, nr = 1;
+    int i, k, r;
 
     parse_commandline(argc, argv, &fname, &varname, &mfname, &mvarname, &fill);
     if (fname == NULL)
         quit("no data file specified");
     if (mfname == NULL)
         quit("no mask specified");
-
-    layered = 1;
-    nk = ncu_getnfields(fname, varname);
-    if (nk == 0) {
-        nk = 1;
-        layered = 0;
-    }
 
     if (verbose > 1) {
         printf("  data = %s\n", fname);
@@ -164,35 +163,46 @@ int main(int argc, char* argv[])
             printf("    %d layers\n", nk);
     }
 
-    ncw_open(fname, NC_NOWRITE, &ncid);
+    ncw_open(fname, NC_WRITE, &ncid);
     ncw_inq_varid(ncid, varname, &varid);
     ncw_inq_vartype(ncid, varid, &vtype);
+    if (fill == FILL_NAN && vtype != NC_FLOAT && vtype != NC_DOUBLE)
+        quit("%s: fill value can not be set to \"nan\" for data of type \"%s\"", varname, ncw_nctype2str(vtype));
+    if (ndims > MAXNDIMS)
+        quit("%s: ndims = %d; should not exceed %d", varname, ndims, MAXNDIMS);
+    ncw_inq_vardims(ncid, varid, MAXNDIMS, &ndims, dimlens);
     if (verbose > 1) {
-        int ndims;
-        size_t dimlens[NC_MAX_DIMS];
-
-        ncw_inq_vardims(ncid, varid, 4, &ndims, dimlens);
         printf("    size = ");
         for (i = 0; i < ndims; ++i)
             printf("%zu%s", dimlens[i], i < ndims - 1 ? " x " : "\n");
     }
-    size = ncw_get_varsize(ncid, varid);
-    slabsize = size / nk;
-    if (fill == FILL_FILLVALUE) {
-        if (vtype == NC_FLOAT)
-            ncw_inq_var_fill(ncid, varid, NULL, &fillvalue_f);
-        else
-            ncw_inq_var_fill(ncid, varid, NULL, &fillvalue_d);
+    for (i = 0, ndims_essential = 0; i < ndims; ++i)
+        if (dimlens[i] > 1)
+            dimids_essential[ndims_essential++] = i;
+    if (ndims_essential == 4) {
+        nr = dimlens[0];
+        nk = dimlens[1];
+        nj = dimlens[2];
+        ni = dimlens[3];
+        if (verbose > 1) {
+            printf("    %d records\n", nr);
+            printf("    %d layers\n", nk);
+        }
+    } else if (ndims_essential == 3) {
+        nk = dimlens[dimids_essential[0]];
+        nj = dimlens[dimids_essential[1]];
+        ni = dimlens[dimids_essential[2]];
+        if (verbose > 1)
+            printf("    %d layers\n", nk);
+    } else if (ndims_essential == 2) {
+        nj = dimlens[dimids_essential[0]];
+        ni = dimlens[dimids_essential[1]];
+    } else if (ndims_essential == 1) {
+        ni = dimlens[dimids_essential[0]];
     }
-    ncw_close(ncid);
-
-    if (vtype == NC_FLOAT)
-        v = calloc(slabsize, sizeof(float));
-    else
-        v = calloc(slabsize, sizeof(double));
 
     if (verbose > 1) {
-        printf("  mask = %s\n", fname);
+        printf("  mask = %s\n", mfname);
         printf("    variable = %s\n", mvarname);
     }
     ncw_open(mfname, NC_NOWRITE, &mncid);
@@ -207,8 +217,8 @@ int main(int argc, char* argv[])
             printf("%zu%s", dimlens[i], i < ndims - 1 ? " x " : "\n");
     }
     msize = ncw_get_varsize(mncid, mvarid);
-    if (msize != slabsize)
-        quit("mask size %zu is not equal layer size %zu", msize, slabsize);
+    if (msize != ni * nj)
+        quit("mask size %zu is not equal layer size %zu", msize, ni * nj);
     mask = calloc(msize, sizeof(int));
     ncw_get_var_int(mncid, mvarid, mask);
     ncw_close(mncid);
@@ -221,113 +231,150 @@ int main(int argc, char* argv[])
                 break;
             }
         }
+        if (masktype == MASKTYPE_BINARY)
+            for (i = 0; i < msize; ++i)
+                if (mask[i] != 0)
+                    mask[i] = nk;
     }
-    if (verbose > 1) {
+    if (verbose > 1)
         printf("    type = %s\n", (masktype == MASKTYPE_NLAYERS) ? "no. of valid layers" : "binary");
-    }
 
     if (verbose > 1) {
-        printf("  applying the mask:");
+        printf("  applying:");
         fflush(stdout);
     }
 
-    for (k = 0; k < nk; ++k) {
-        if (layered) {
-            if (vtype == NC_FLOAT)
-                ncu_readfield(fname, varname, k, -1, 1, nk, v);
-            else
-                ncu_readfield_double(fname, varname, k, -1, 1, nk, v);
-        } else {
-            if (vtype == NC_FLOAT)
-                ncu_readvarfloat(ncid, varid, size, v);
-            else if (vtype == NC_DOUBLE)
-                ncu_readvardouble(ncid, varid, size, v);
+    v = malloc(ni * nj * ncw_sizeof(vtype));
+
+    if (fill == FILL_FILLVALUE) {
+        fillvalue = malloc(ncw_sizeof(vtype));
+        ncw_inq_var_fill(ncid, varid, NULL, fillvalue);
+    } else if (fill == FILL_ZERO && vtype != NC_DOUBLE && vtype != NC_FLOAT) {
+        if (ncw_att_exists(ncid, varid, "scale_factor") || ncw_att_exists(ncid, varid, "add_offset")) {
+            double scale_factor = 1.0;
+            double add_offset = 0.0;
+
+            if (ncw_att_exists(ncid, varid, "scale_factor")) {
+                ncw_check_attlen(ncid, varid, "scale_factor", 1);
+                ncw_get_att_double(ncid, varid, "scale_factor", &scale_factor);
+            }
+            if (ncw_att_exists(ncid, varid, "add_offset")) {
+                ncw_check_attlen(ncid, varid, "add_offset", 1);
+                ncw_get_att_double(ncid, varid, "add_offset", &add_offset);
+            }
+
+            zerovalue = -(int64_t) (add_offset / scale_factor);
         }
-        if (masktype == MASKTYPE_BINARY) {
-            if (vtype == NC_FLOAT) {
-                float* vf = (float*) v;
+    }
+
+    for (r = 0; r < nr; ++r) {
+        for (k = 0; k < nk; ++k) {
+            size_t start[MAXNDIMS] = { 0, 0, 0, 0 };
+            size_t count[MAXNDIMS] = { 1, 1, 1, 1 };
+
+            if (ndims_essential == 4) {
+                start[0] = k;
+                start[1] = r;
+                count[2] = nj;
+                count[3] = ni;
+            } else if (ndims_essential == 3) {
+                start[dimids_essential[0]] = k;
+                count[dimids_essential[1]] = nj;
+                count[dimids_essential[2]] = ni;
+            } else if (ndims_essential == 2) {
+                count[dimids_essential[0]] = nj;
+                count[dimids_essential[1]] = ni;
+            } else if (ndims_essential == 1) {
+                count[dimids_essential[0]] = ni;
+            }
+
+            ncw_get_vara(ncid, varid, start, count, v);
+            if (vtype == NC_DOUBLE) {
+                double* vv = (double*) v;
 
                 if (fill == FILL_ZERO) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] == 0)
-                            vf[i] = 0.0;
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = 0.0;
                 } else if (fill == FILL_NAN) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] == 0)
-                            vf[i] = NAN;
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = NAN;
                 } else if (fill == FILL_FILLVALUE) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] == 0)
-                            vf[i] = fillvalue_f;
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = ((double*) fillvalue)[0];
                 }
-            } else {
-                double* vd = (double*) v;
+            } else if (vtype == NC_FLOAT) {
+                float* vv = (float*) v;
 
                 if (fill == FILL_ZERO) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] == 0)
-                            vd[i] = 0.0;
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = 0.0;
                 } else if (fill == FILL_NAN) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] == 0)
-                            vd[i] = NAN;
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = NAN;
                 } else if (fill == FILL_FILLVALUE) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] == 0)
-                            vd[i] = fillvalue_d;
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = ((float*) fillvalue)[0];
+                }
+            } else if (ncw_sizeof(vtype) == 1) {
+                int8_t* vv = (int8_t*) v;
+
+                if (fill == FILL_ZERO) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = zerovalue;
+                } else if (fill == FILL_FILLVALUE) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = ((int8_t*) fillvalue)[0];
+                }
+            } else if (ncw_sizeof(vtype) == 2) {
+                int16_t* vv = (int16_t*) v;
+
+                if (fill == FILL_ZERO) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = zerovalue;
+                } else if (fill == FILL_FILLVALUE) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = ((int16_t*) fillvalue)[0];
+                }
+            } else if (ncw_sizeof(vtype) == 4) {
+                int32_t* vv = (int32_t*) v;
+
+                if (fill == FILL_ZERO) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = zerovalue;
+                } else if (fill == FILL_FILLVALUE) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = ((int32_t*) fillvalue)[0];
+                }
+            } else if (ncw_sizeof(vtype) == 8) {
+                int64_t* vv = (int64_t*) v;
+
+                if (fill == FILL_ZERO) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = zerovalue;
+                } else if (fill == FILL_FILLVALUE) {
+                    for (i = 0; i < ni * nj; ++i)
+                        if (mask[i] <= k)
+                            vv[i] = ((int64_t*) fillvalue)[0];
                 }
             }
-        } else if (masktype == MASKTYPE_NLAYERS) {
-            if (vtype == NC_FLOAT) {
-                float* vf = (float*) v;
-
-                if (fill == FILL_ZERO) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] <= k)
-                            vf[i] = 0.0;
-                } else if (fill == FILL_NAN) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] <= k)
-                            vf[i] = NAN;
-                } else if (fill == FILL_FILLVALUE) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] <= k)
-                            vf[i] = fillvalue_f;
-                }
-            } else {
-                double* vd = (double*) v;
-
-                if (fill == FILL_ZERO) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] <= k)
-                            vd[i] = 0.0;
-                } else if (fill == FILL_NAN) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] <= k)
-                            vd[i] = NAN;
-                } else if (fill == FILL_FILLVALUE) {
-                    for (i = 0; i < slabsize; ++i)
-                        if (mask[i] <= k)
-                            vd[i] = fillvalue_d;
-                }
+            ncw_put_vara(ncid, varid, start, count, v);
+            if (verbose && nk > 1) {
+                printf(".");
+                fflush(stdout);
             }
-        }
-        if (layered) {
-            if (vtype == NC_FLOAT)
-                ncu_writefield(fname, varname, k, -1, 1, nk, v);
-            else
-                ncu_writefield_double(fname, varname, k, -1, 1, nk, v);
-        } else {
-            ncw_open(fname, NC_WRITE, &ncid);
-            if (vtype == NC_FLOAT)
-                ncw_put_var_float(ncid, varid, v);
-            else
-                ncw_put_var_double(ncid, varid, v);
-            ncw_close(ncid);
-        }
-        if (verbose) {
-            printf(".");
-            fflush(stdout);
         }
     }
     if (verbose)
@@ -352,7 +399,8 @@ int main(int argc, char* argv[])
         ncw_close(ncid);
     }
 
+    if (fillvalue != NULL)
+        free(fillvalue);
     free(v);
-    if (mask != NULL)
-        free(mask);
+    free(mask);
 }
