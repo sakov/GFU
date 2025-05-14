@@ -5,6 +5,10 @@ DESCRIPTION
 GFU contains several utilities developed in the course of the author's work with
 large geophysical models.
 
+Except NCCAT, these utilities process the data by layers, and therefore perform
+best with data chunked by layers (which should be the case for layered
+geophysical models).
+
 REGRID_LL
   Utility for horizontal interpolation of geophysical layered fields. It targets
   geographic grids with nodes defined in lat/lon and provides robust
@@ -30,7 +34,10 @@ NCMINMAX
   Finds minimal and maximal values of a variable in a NetCDF file.
 
 NCMASK
-  Fills the "land" data with 0s or NaNs (NetCDF fill values).
+  Fills the "land" data with 0s or NaNs (NetCDF fill values). For data of type
+  float or double the original data outside the mask is preserved; data of other
+  types is read as doubles and therefore can suffer from round-off errors when
+  written back (I guess).
 
 LICENSE
 

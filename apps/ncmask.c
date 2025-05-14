@@ -21,13 +21,14 @@
 #include <math.h>
 #include <assert.h>
 #include <float.h>
+#include <unistd.h>
 #include "version.h"
 #include "ncw.h"
 #include "ncutils.h"
 #include "utils.h"
 
 #define PROGRAM_NAME "ncmask"
-#define PROGRAM_VERSION "0.01"
+#define PROGRAM_VERSION "0.02"
 #define VERBOSE_DEF 1
 
 #define MASKTYPE_NONE 0
@@ -44,10 +45,10 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [0|nan|fillvalue] -m <file> <var> [-v]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [0|{nan|fillvalue}] -m <file> <var> [-v]\n", PROGRAM_NAME);
     printf("         %s -v [0|1|2]\n", PROGRAM_NAME);
     printf("  Options:\n");
-    printf("    <file> <var> [0|nan|fillvalue] - data file, variable and the fill value\n");
+    printf("    <file> <var> [0|{nan|fillvalue}] - data file, variable and the fill value\n");
     printf("       (default = 0)\n");
     printf("    -m <file> <var> -- land mask (either 2D with 0s and 1s; or 2D with number\n");
     printf("       of valid layers in a column; or for 1D or 2D variables of the size of\n");
@@ -127,10 +128,8 @@ int main(int argc, char* argv[])
     char* mvarname = NULL;
     int fill = FILL_ZERO;
 
-    int ncid = -1, varid = -1, ndims = -1;
+    int ncid = -1, varid = -1;
     nc_type vtype;
-    int dimids[NC_MAX_DIMS];
-    size_t dimlens[NC_MAX_DIMS];
     size_t i, size, slabsize;
     float fillvalue_f = NAN;
     double fillvalue_d = NAN;
@@ -163,39 +162,50 @@ int main(int argc, char* argv[])
         printf("    variable = %s\n", varname);
         if (nk > 1)
             printf("    %d layers\n", nk);
-        printf("  mask = %s\n", fname);
-        printf("    variable = %s\n", mvarname);
     }
 
     ncw_open(fname, NC_NOWRITE, &ncid);
     ncw_inq_varid(ncid, varname, &varid);
-    ncw_inq_var(ncid, varid, NULL, &vtype, &ndims, dimids, NULL);
-    if (vtype != NC_FLOAT && vtype != NC_DOUBLE)
-        quit("%s: %s: type = %s, but must be either NC_FILL or NC_DOUBLE only", fname, varname, ncw_nctype2str(vtype));
-    for (i = 0; i < ndims; ++i)
-        ncw_inq_dimlen(ncid, dimids[i], &dimlens[i]);
+    ncw_inq_vartype(ncid, varid, &vtype);
+    if (verbose > 1) {
+        int ndims;
+        size_t dimlens[NC_MAX_DIMS];
+
+        ncw_inq_vardims(ncid, varid, 4, &ndims, dimlens);
+        printf("    size = ");
+        for (i = 0; i < ndims; ++i)
+            printf("%zu%s", dimlens[i], i < ndims - 1 ? " x " : "\n");
+    }
     size = ncw_get_varsize(ncid, varid);
     slabsize = size / nk;
     if (fill == FILL_FILLVALUE) {
         if (vtype == NC_FLOAT)
             ncw_inq_var_fill(ncid, varid, NULL, &fillvalue_f);
-        else if (vtype == NC_DOUBLE)
-            ncw_inq_var_fill(ncid, varid, NULL, &fillvalue_d);
         else
-            quit("programming error");
+            ncw_inq_var_fill(ncid, varid, NULL, &fillvalue_d);
     }
-    if (layered)
-        ncw_close(ncid);
+    ncw_close(ncid);
 
     if (vtype == NC_FLOAT)
         v = calloc(slabsize, sizeof(float));
-    else if (vtype == NC_DOUBLE)
-        v = calloc(slabsize, sizeof(double));
     else
-        quit("programming_error");
+        v = calloc(slabsize, sizeof(double));
 
+    if (verbose > 1) {
+        printf("  mask = %s\n", fname);
+        printf("    variable = %s\n", mvarname);
+    }
     ncw_open(mfname, NC_NOWRITE, &mncid);
     ncw_inq_varid(mncid, mvarname, &mvarid);
+    if (verbose > 1) {
+        int ndims;
+        size_t dimlens[NC_MAX_DIMS];
+
+        ncw_inq_vardims(mncid, mvarid, 4, &ndims, dimlens);
+        printf("    size = ");
+        for (i = 0; i < ndims; ++i)
+            printf("%zu%s", dimlens[i], i < ndims - 1 ? " x " : "\n");
+    }
     msize = ncw_get_varsize(mncid, mvarid);
     if (msize != slabsize)
         quit("mask size %zu is not equal layer size %zu", msize, slabsize);
@@ -225,10 +235,8 @@ int main(int argc, char* argv[])
         if (layered) {
             if (vtype == NC_FLOAT)
                 ncu_readfield(fname, varname, k, -1, 1, nk, v);
-            else if (vtype == NC_DOUBLE)
-                ncu_readfield_double(fname, varname, k, -1, 1, nk, v);
             else
-                quit("programing_error");
+                ncu_readfield_double(fname, varname, k, -1, 1, nk, v);
         } else {
             if (vtype == NC_FLOAT)
                 ncu_readvarfloat(ncid, varid, size, v);
@@ -252,7 +260,7 @@ int main(int argc, char* argv[])
                         if (mask[i] == 0)
                             vf[i] = fillvalue_f;
                 }
-            } else if (vtype == NC_DOUBLE) {
+            } else {
                 double* vd = (double*) v;
 
                 if (fill == FILL_ZERO) {
@@ -268,8 +276,7 @@ int main(int argc, char* argv[])
                         if (mask[i] == 0)
                             vd[i] = fillvalue_d;
                 }
-            } else
-                quit("programming error");
+            }
         } else if (masktype == MASKTYPE_NLAYERS) {
             if (vtype == NC_FLOAT) {
                 float* vf = (float*) v;
@@ -287,7 +294,7 @@ int main(int argc, char* argv[])
                         if (mask[i] <= k)
                             vf[i] = fillvalue_f;
                 }
-            } else if (vtype == NC_DOUBLE) {
+            } else {
                 double* vd = (double*) v;
 
                 if (fill == FILL_ZERO) {
@@ -303,21 +310,18 @@ int main(int argc, char* argv[])
                         if (mask[i] <= k)
                             vd[i] = fillvalue_d;
                 }
-            } else
-                quit("programming error");
-        } else
-            quit("programming error");
+            }
+        }
         if (layered) {
             if (vtype == NC_FLOAT)
                 ncu_writefield(fname, varname, k, -1, 1, nk, v);
-            else if (vtype == NC_DOUBLE)
-                ncu_writefield_double(fname, varname, k, -1, 1, nk, v);
             else
-                quit("programming_error");
+                ncu_writefield_double(fname, varname, k, -1, 1, nk, v);
         } else {
+            ncw_open(fname, NC_WRITE, &ncid);
             if (vtype == NC_FLOAT)
                 ncw_put_var_float(ncid, varid, v);
-            else if (vtype == NC_DOUBLE)
+            else
                 ncw_put_var_double(ncid, varid, v);
             ncw_close(ncid);
         }
@@ -328,6 +332,25 @@ int main(int argc, char* argv[])
     }
     if (verbose)
         printf("\n");
+
+    /*
+     * copy command line and wdir to dst
+     */
+    {
+        char* cmd = get_command(argc, argv);
+        char attname[NC_MAX_NAME];
+        char cwd[MAXSTRLEN];
+
+        snprintf(attname, NC_MAX_NAME, "%s: command", PROGRAM_NAME);
+        ncw_open(fname, NC_WRITE, &ncid);
+        ncw_put_att_text(ncid, NC_GLOBAL, attname, cmd);
+        free(cmd);
+        if (getcwd(cwd, MAXSTRLEN) != NULL) {
+            snprintf(attname, NC_MAX_NAME, "%s: wdir", PROGRAM_NAME);
+            ncw_put_att_text(ncid, NC_GLOBAL, attname, cwd);
+        }
+        ncw_close(ncid);
+    }
 
     free(v);
     if (mask != NULL)

@@ -12,7 +12,8 @@
  *              attributes: _FillValue, missing_value, valid_range, valid_min,
  *              valid_max, add_offset, and scale_factor.
  *
- *              This file is an excerpt from ncutils.h in EnKF-C package.
+ *              This file is a modified excerpt from ncutils.h in EnKF-C
+ *              package.
  * Revisions:
  *
  *****************************************************************************/
