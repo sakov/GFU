@@ -51,7 +51,7 @@ static void usage(int status)
     printf("  Usage: %s <file> <var> [0|nan|fillvalue] -m <file> <var> [-v {0|1|2}]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
-    printf("    <file> <var> [0|{nan|fillvalue}] - data file, variable and the fill value\n");
+    printf("    <file> <var> [0|nan|fillvalue] - data file, variable and the fill value\n");
     printf("       (default = 0)\n");
     printf("    -m <file> <var> -- land mask (either 2D with 0s and 1s; or 2D with number\n");
     printf("       of valid layers in a column; or for 1D or 2D variables of the size of\n");
