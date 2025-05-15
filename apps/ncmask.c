@@ -50,7 +50,6 @@ static void usage(int status)
     printf("    <file> <var> [0*|nan|fillvalue] - data file, variable and the fill value\n");
     printf("    -m <file> <var> -- land mask (for 2D or 3D variables: either 2D with 0s and 1s;\n");
     printf("       or 2D with number of valid layers in a column\n");
-    printf("       of the variable with 0s and 1s\n");
     printf("    -v {0|1*|2} -- verbosity level | print version and exit\n");
     exit(status);
 }
