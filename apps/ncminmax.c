@@ -45,8 +45,7 @@ static void usage(int status)
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -m <file> <var> -- set mask (for 2D or 3D variables: either 2D with 0s and 1s;\n");
-    printf("       or 2D with number of valid layers in a column; for 1D variables: of the size\n");
-    printf("       of the variable with 0s and 1s\n");
+    printf("       or 2D with number of valid layers in a column\n");
     printf("    -a -- also report average\n");
     printf("    -s -- strict (no missing values allowed)\n");
     printf("    -v {0*|1|2} -- verbosity level | print version and exit\n");
