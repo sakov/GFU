@@ -1,3 +1,8 @@
+v0.29
+  PS 20250515
+  - NCMASK: removed redundant includes; corrected the usage message.
+  - NCMINMAX: slightly modified the usage; merged the processing for two mask
+    types.
 v0.28
   PS 20250514
   - NCMASK: rewrote as hinted below.

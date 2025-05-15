@@ -16,20 +16,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 #include <math.h>
-#include <assert.h>
-#include <float.h>
 #include <stdint.h>
 #include <unistd.h>
 #include "version.h"
 #include "ncw.h"
-#include "ncutils.h"
 #include "utils.h"
 
 #define PROGRAM_NAME "ncmask"
-#define PROGRAM_VERSION "0.04"
+#define PROGRAM_VERSION "0.05"
 #define VERBOSE_DEF 1
 
 #define MASKTYPE_NONE 0
@@ -48,15 +44,14 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [0|nan|fillvalue] -m <file> <var> [-v {0|1|2}]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [0*|nan|fillvalue] -m <file> <var> [-v {0|1*|2}]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
-    printf("    <file> <var> [0|nan|fillvalue] - data file, variable and the fill value\n");
-    printf("       (default = 0)\n");
-    printf("    -m <file> <var> -- land mask (either 2D with 0s and 1s; or 2D with number\n");
-    printf("       of valid layers in a column; or for 1D or 2D variables of the size of\n");
-    printf("       the variable with 0s and 1s\n");
-    printf("    -v [0|1|2] -- verbosity level (default = 1) | print version and exit\n");
+    printf("    <file> <var> [0*|nan|fillvalue] - data file, variable and the fill value\n");
+    printf("    -m <file> <var> -- land mask (for 2D or 3D variables: either 2D with 0s and 1s;\n");
+    printf("       or 2D with number of valid layers in a column; for 1D variables: of the size\n");
+    printf("       of the variable with 0s and 1s\n");
+    printf("    -v {0|1*|2} -- verbosity level | print version and exit\n");
     exit(status);
 }
 
@@ -156,13 +151,15 @@ int main(int argc, char* argv[])
     if (mfname == NULL)
         quit("no mask specified");
 
+    /*
+     * data
+     */
     if (verbose > 1) {
         printf("  data = %s\n", fname);
         printf("    variable = %s\n", varname);
         if (nk > 1)
             printf("    %d layers\n", nk);
     }
-
     ncw_open(fname, NC_WRITE, &ncid);
     ncw_inq_varid(ncid, varname, &varid);
     ncw_inq_vartype(ncid, varid, &vtype);
@@ -201,6 +198,9 @@ int main(int argc, char* argv[])
         ni = dimlens[dimids_essential[0]];
     }
 
+    /*
+     * mask
+     */
     if (verbose > 1) {
         printf("  mask = %s\n", mfname);
         printf("    variable = %s\n", mvarname);

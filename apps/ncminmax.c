@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.09"
+#define PROGRAM_VERSION "0.10"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
@@ -41,16 +41,15 @@ int doave = 0;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [-m <file> <var>] [-a] [-s] [-v|-V]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [-m <file> <var>] [-a] [-s] [-v {0*|1|2}]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
-    printf("    -m <file> <var> -- set mask: either 2D with 0s and 1s;\n");
-    printf("       or 2D with number of valid layers in a column;\n");
-    printf("       or (for 1D or 2D variables) of the size of the variable with 0s and 1s\n");
+    printf("    -m <file> <var> -- set mask (for 2D or 3D variables: either 2D with 0s and 1s;\n");
+    printf("       or 2D with number of valid layers in a column; for 1D variables: of the size\n");
+    printf("       of the variable with 0s and 1s\n");
     printf("    -a -- also report average\n");
     printf("    -s -- strict (no missing values allowed)\n");
-    printf("    -v -- verbose (more info) | print version and exit\n");
-    printf("    -V -- more verbose (print by-layer results)\n");
+    printf("    -v {0*|1|2} -- verbosity level | print version and exit\n");
     exit(status);
 }
 
@@ -73,10 +72,10 @@ static void parse_commandline(int argc, char* argv[], char** fname, char** varna
     while (i < argc) {
         if (argv[i][0] == '-') {
             if (argv[i][1] == 'v') {
-                verbose = 1;
                 i++;
-            } else if (argv[i][1] == 'V') {
-                verbose = 2;
+                if (i == argc || argv[i][0] == '-')
+                    quit("no verbosity level specified after \"-v\"");
+                str2int(argv[i], &verbose);
                 i++;
             } else if (argv[i][1] == 's') {
                 strict = 1;
@@ -180,6 +179,10 @@ int main(int argc, char* argv[])
                     break;
                 }
             }
+            if (masktype == MASKTYPE_BINARY)
+                for (i = 0; i < msize; ++i)
+                    if (mask[i] != 0)
+                        mask[i] = nk;
         }
     }
 
@@ -228,40 +231,7 @@ int main(int argc, char* argv[])
                     n_k++;
                 }
             }
-        } else if (masktype == MASKTYPE_BINARY) {
-            for (i = 0; i < size / nk; ++i, ++ij) {
-                if (mask[i] == 0)
-                    continue;
-                if (isnan(v[i])) {
-                    if (!strict)
-                        continue;
-                    else
-                        quit("%s(%d) = missing", varname, i);
-                }
-                if (v[i] > max) {
-                    max = v[i];
-                    imax = ij;
-                }
-                if (v[i] < min) {
-                    min = v[i];
-                    imin = ij;
-                }
-                ave += v[i];
-                n++;
-                if (verbose > 1) {
-                    if (v[i] > max_k) {
-                        max_k = v[i];
-                        imax_k = i;
-                    }
-                    if (v[i] < min_k) {
-                        min_k = v[i];
-                        imin_k = i;
-                    }
-                    ave_k += v[i];
-                    n_k++;
-                }
-            }
-        } else if (masktype == MASKTYPE_NLAYERS) {
+        } else {
             for (i = 0; i < size / nk; ++i, ++ij) {
                 if (mask[i] <= k)
                     continue;
