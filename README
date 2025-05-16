@@ -19,9 +19,8 @@ REGRID_LL
 
 NCAVE
   Utility for averaging very large ensemble dumps. Compared to NCEA/NCRA it (1)
-  conserves memory by averaging on layer-by-layer basis, and (2) when run on
-  multiple CPUs processes layers in parallel. Note that for best performance
-  the input dumps must be chunked by layers.
+  has smaller memory footprint, and (2) when run on multiple CPUs processes
+  layers in parallel.
 
 NCCAT
   Concatenates variables in NetCDF files over arbitrary dimensions.
