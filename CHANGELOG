@@ -1,3 +1,5 @@
+v0.30
+  - NCMINMAX: cosmetics
 v0.29
   PS 20250515
   - NCMASK: removed redundant includes; corrected the usage message.

@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.10"
+#define PROGRAM_VERSION "0.11"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
@@ -199,69 +199,37 @@ int main(int argc, char* argv[])
             ncu_readvardouble(ncid, varid, size, v);
             ncw_close(ncid);
         }
-        if (masktype == MASKTYPE_NONE) {
-            for (i = 0; i < size / nk; ++i, ++ij) {
-                if (isnan(v[i])) {
-                    if (!strict)
-                        continue;
-                    else
-                        quit("%s(%d) = missing", varname, i);
-                }
-                if (v[i] > max) {
-                    max = v[i];
-                    imax = ij;
-                }
-                if (v[i] < min) {
-                    min = v[i];
-                    imin = ij;
-                }
-                ave += v[i];
-                n++;
-                if (verbose > 1) {
-                    if (v[i] > max_k) {
-                        max_k = v[i];
-                        imax_k = i;
-                    }
-                    if (v[i] < min_k) {
-                        min_k = v[i];
-                        imin_k = i;
-                    }
-                    ave_k += v[i];
-                    n_k++;
-                }
-            }
-        } else {
-            for (i = 0; i < size / nk; ++i, ++ij) {
-                if (mask[i] <= k)
+
+        for (i = 0; i < size / nk; ++i, ++ij) {
+            if (mask != NULL && mask[i] <= k)
+                continue;
+            if (isnan(v[i])) {
+                if (!strict)
                     continue;
-                if (isnan(v[i])) {
-                    if (!strict)
-                        continue;
-                    else
-                        quit("%s(%d) = missing", varname, i);
+                else
+                    quit("%s(%d) = missing", varname, i);
+            }
+            if (v[i] > max) {
+                max = v[i];
+                imax = ij;
+            }
+            if (v[i] < min) {
+                min = v[i];
+                imin = ij;
+            }
+            ave += v[i];
+            n++;
+            if (verbose > 1) {
+                if (v[i] > max_k) {
+                    max_k = v[i];
+                    imax_k = i;
                 }
-                if (v[i] > max) {
-                    max = v[i];
-                    imax = ij;
+                if (v[i] < min_k) {
+                    min_k = v[i];
+                    imin_k = i;
                 }
-                if (v[i] < min) {
-                    min = v[i];
-                    imin = ij;
-                }
-                ave += v[i];
-                n++;
-                if (verbose > 1) {
-                    if (v[i] > max_k) {
-                        max_k = v[i];
-                        imax_k = i;
-                    }
-                    if (v[i] < min_k) {
-                        min_k = v[i];
-                        imin_k = i;
-                    }
-                    ave_k += v[i];
-                    n_k++;
-                }
+                ave_k += v[i];
+                n_k++;
             }
         }
         if (verbose == 1 && layered) {
