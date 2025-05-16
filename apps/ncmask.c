@@ -25,7 +25,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncmask"
-#define PROGRAM_VERSION "0.05"
+#define PROGRAM_VERSION "0.06"
 #define VERBOSE_DEF 1
 
 #define MASKTYPE_NONE 0
@@ -376,7 +376,7 @@ int main(int argc, char* argv[])
             }
         }
     }
-    if (verbose)
+    if (verbose && nk > 1)
         printf("\n");
 
     /*

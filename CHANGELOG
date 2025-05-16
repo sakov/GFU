@@ -1,3 +1,7 @@
+v0.31
+  PS 20250516
+  - NCMINMAX: corrected parse_commandline(); several cosmetic changes.
+  - NCMASK: cosmetics
 v0.30
   PS 20250516
   - NCMINMAX: cosmetics

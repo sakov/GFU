@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.11"
+#define PROGRAM_VERSION "0.12"
 #define VERBOSE_DEF 0
 
 #define MASKTYPE_NONE 0
@@ -99,7 +99,7 @@ static void parse_commandline(int argc, char* argv[], char** fname, char** varna
         } else if (*fname == NULL) {
             *fname = argv[i];
             i++;
-            if (i == argc && argv[i][0] == '-')
+            if (i == argc || argv[i][0] == '-')
                 quit("no variable name specified");
             *varname = argv[i];
             i++;
@@ -135,18 +135,14 @@ int main(int argc, char* argv[])
     size_t n = 0;
     size_t imin = 0;
     size_t imax = 0;
-    int layered;
     int nk, k;
 
     parse_commandline(argc, argv, &fname, &varname, &mfname, &mvarname);
 
-    layered = 1;
     nk = ncu_getnfields(fname, varname);
-    if (nk == 0) {
+    if (nk == 0)
         nk = 1;
-        layered = 0;
-    }
-    if (!layered && verbose == 2)
+    if (nk == 1 && verbose == 2)
         verbose = 1;
 
     ncw_open(fname, NC_NOWRITE, &ncid);
@@ -155,7 +151,7 @@ int main(int argc, char* argv[])
     for (i = 0; i < ndims; ++i)
         ncw_inq_dimlen(ncid, dimids[i], &dimlens[i]);
     size = ncw_get_varsize(ncid, varid);
-    if (layered)
+    if (nk > 1)
         ncw_close(ncid);
 
     v = calloc(size / nk, sizeof(double));
@@ -193,7 +189,7 @@ int main(int argc, char* argv[])
         double ave_k = 0.0;
         size_t n_k = 0, imin_k = 0, imax_k = 0;
 
-        if (layered)
+        if (nk > 1)
             ncu_readfield_double(fname, varname, k, -1, 1, nk, v);
         else {
             ncu_readvardouble(ncid, varid, size, v);
@@ -232,7 +228,7 @@ int main(int argc, char* argv[])
                 n_k++;
             }
         }
-        if (verbose == 1 && layered) {
+        if (verbose == 1 && nk > 1) {
             printf(".");
             fflush(stdout);
         }
@@ -262,7 +258,7 @@ int main(int argc, char* argv[])
             printf(")\n");
         }
     }
-    if (verbose == 1 && layered)
+    if (verbose == 1 && nk > 1)
         printf("\n");
 
     if (mask != NULL)
