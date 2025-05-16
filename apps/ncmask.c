@@ -8,7 +8,7 @@
  *              Bureau of Meteorology
  *
  * Description: NCMASK writes 0, NaN, or fill value to areas defined by a layer
- *              mask from an external file.
+ *              mask.
  *             
  * Revisions:
  *
