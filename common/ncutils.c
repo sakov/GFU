@@ -106,7 +106,7 @@ void ncu_readvarfloat(int ncid, int varid, size_t n, float v[])
             ncw_check_attlen(ncid, varid, attname, 1);
 
             if (vv == NULL) {
-                if (vartype != NC_FLOAT) {
+                if (typesize != sizeof(float)) {
                     vv = malloc(n * typesize);
                     ncw_get_var(ncid, varid, vv);
                 } else
@@ -451,7 +451,7 @@ void ncu_readvarfloat(int ncid, int varid, size_t n, float v[])
         } else
             quit("programming error");
     }
-    if (vv != NULL && vartype != NC_FLOAT)
+    if (vv != NULL && typesize != sizeof(float))
         free(vv);
 
     if (ncw_att_exists(ncid, varid, "scale_factor")) {
@@ -495,7 +495,7 @@ void ncu_readvardouble(int ncid, int varid, size_t n, double v[])
             ncw_check_attlen(ncid, varid, attname, 1);
 
             if (vv == NULL) {
-                if (vartype != NC_DOUBLE) {
+                if (typesize != sizeof(double)) {
                     vv = malloc(n * typesize);
                     ncw_get_var(ncid, varid, vv);
                 } else
@@ -839,7 +839,7 @@ void ncu_readvardouble(int ncid, int varid, size_t n, double v[])
         } else
             quit("programming error");
     }
-    if (vv != NULL && vartype != NC_DOUBLE)
+    if (vv != NULL && typesize != sizeof(double))
         free(vv);
 
     if (ncw_att_exists(ncid, varid, "scale_factor")) {

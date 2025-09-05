@@ -1,3 +1,6 @@
+v 0.32
+  PS 20250905
+  -- Fixed defects in ncu_readvardouble() and ncu_readvarfloat().
 v0.31
   PS 20250516
   - NCMINMAX: corrected parse_commandline(); several cosmetic changes.
