@@ -307,6 +307,10 @@ int main(int argc, char* argv[])
         quit("nothing to do: k2 < k1");
 
     if (verbose) {
+        printf("  %s v%s\n", PROGRAM_NAME, PROGRAM_VERSION);
+        printf("  GFU v%s\n", VERSION);
+    }
+    if (verbose) {
         printf("  src = \"%s\"\n", fname_src);
         printf("    varname =  \"%s\"\n", varname);
         fflush(stdout);

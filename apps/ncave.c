@@ -38,7 +38,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncave"
-#define PROGRAM_VERSION "0.01"
+#define PROGRAM_VERSION "0.02"
 
 #define ALIGN __attribute__((aligned(32)))
 
@@ -139,22 +139,22 @@ static void dir_rmallifexists(char dirname[])
  */
 static void usage(int exitstatus)
 {
-    printf("  Usage: ncave [-v <var>] [...] [-c <var>] [...] [-V] [-f] {<src> [...] <dst>}\n");
+    printf("  Usage: ncave [-a <var> [...]] [-c <var> [...]] -i <src> [...] -o <dst>} [-f] [-v]\n");
     printf("         ncave -v\n");
     printf("  Parameters:\n");
-    printf("    -v <var>            -- variable to be averaged over all input files\n");
-    printf("                           (default: all variables with 2 or more dimensions)\n");
-    printf("    -c <var>            -- variable to be copied from the first input file\n");
-    printf("    {<src> [...] <dst>} -- list of input files followed by the output  file\n");
-    printf("    -f                  -- overwrite destination if exists\n");
-    printf("    -V                  -- verbose\n");
-    printf("    -v                  -- print version and exit\n");
+    printf("    -a <var>       -- variable to be averaged over all input files\n");
+    printf("                      (default: all variables with 2 or more dimensions)\n");
+    printf("    -c <var>       -- variables to be copied from the first input file\n");
+    printf("    -i <src> [...] -- list of input files\n");
+    printf("    -o <dst>       -- output file\n");
+    printf("    -f             -- overwrite destination if exists\n");
+    printf("    -v             -- verbose/version\n");
     exit(exitstatus);
 }
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, int* nvar, char*** vars, int* ncvar, char*** cvars)
+static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, char** dst, int* nvar, char*** vars, int* ncvar, char*** cvars)
 {
     int i;
 
@@ -170,51 +170,59 @@ static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, i
     i = 1;
     while (i < argc) {
         if (argv[i][0] == '-') {
-            if (argv[i][1] == 'V') {
+            if (argv[i][1] == 'v') {
                 verbose = 1;
                 i++;
             } else if (argv[i][1] == 'f') {
                 force = 1;
                 i++;
-            } else if (argv[i][1] == 'v') {
+            } else if (argv[i][1] == 'a') {
                 i++;
                 if (i >= argc)
-                    quit("no variable specified after \"-v\"\n");
-                if (*nvar % NVAR_INC == 0)
-                    *vars = realloc(*vars, (*nvar + NVAR_INC) * sizeof(void*));
-                (*vars)[*nvar] = strdup(argv[i]);
-                (*nvar)++;
-                i++;
+                    quit("no variable specified after \"-a\"\n");
+                while (i < argc && argv[i][0] != '-') {
+                    if (*nvar % NVAR_INC == 0)
+                        *vars = realloc(*vars, (*nvar + NVAR_INC) * sizeof(void*));
+                    (*vars)[*nvar] = argv[i];
+                    (*nvar)++;
+                    i++;
+                }
             } else if (argv[i][1] == 'c') {
                 i++;
                 if (i >= argc)
                     quit("no variable specified after \"-c\"\n");
-                if (*ncvar % NVAR_INC == 0)
-                    *cvars = realloc(*cvars, (*ncvar + NVAR_INC) * sizeof(void*));
-                (*cvars)[*ncvar] = strdup(argv[i]);
-                (*ncvar)++;
+                while (i < argc && argv[i][0] != '-') {
+                    if (*ncvar % NVAR_INC == 0)
+                        *cvars = realloc(*cvars, (*ncvar + NVAR_INC) * sizeof(void*));
+                    (*cvars)[*ncvar] = argv[i];
+                    (*ncvar)++;
+                    i++;
+                }
+            } else if (argv[i][1] == 'i') {
+                i++;
+                if (i >= argc)
+                    quit("no input files \"-i\"\n");
+                while (i < argc && argv[i][0] != '-') {
+                    if (*nsrc % NSRC_INC == 0)
+                        *srcs = realloc(*srcs, (*nsrc + NSRC_INC) * sizeof(void*));
+                    (*srcs)[*nsrc] = argv[i];
+                    (*nsrc)++;
+                    i++;
+                }
+            } else if (argv[i][1] == 'o') {
+                i++;
+                *dst = argv[i];
                 i++;
             } else {
                 printf("  ncave: ERROR: unknown option \"%s\"\n", argv[i]);
                 usage(1);
             }
-        } else {
-            if (*nsrc != 0) {
-                printf("  ncave: ERROR: input and output files need to be specified in a continuous sequence\n");
-                usage(1);
-            }
-            while (i < argc && argv[i][0] != '-') {
-                if (*nsrc % NSRC_INC == 0)
-                    *srcs = realloc(*srcs, (*nsrc + NSRC_INC) * sizeof(void*));
-                (*srcs)[*nsrc] = strdup(argv[i]);
-                (*nsrc)++;
-                i++;
-            }
-        }
+        } else
+            usage(1);
     }
     if (*nsrc == 0)
         quit("no input specified");
-    if (*nsrc == 1)
+    if (*dst == NULL)
         quit("no output specified");
     if (*nvar > 0 && *ncvar > 0) {
         for (i = 0; i < *nvar; ++i) {
@@ -367,7 +375,7 @@ int main(int argc, char* argv[])
 {
     int nsrc = 0;
     char** srcs = NULL;
-    char* dst;
+    char* dst = NULL;
 
     /*
      * variables to average
@@ -384,10 +392,8 @@ int main(int argc, char* argv[])
     field* fields = NULL;
     int i;
 
-    parse_commandline(argc, argv, &nsrc, &srcs, &nvar, &vars, &ncvar, &cvars);
+    parse_commandline(argc, argv, &nsrc, &srcs, &dst, &nvar, &vars, &ncvar, &cvars);
 
-    dst = srcs[nsrc - 1];
-    nsrc--;
     if (file_exists(dst) && !force)
         quit("destination \"%s\" exists", dst);
 
@@ -397,7 +403,8 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 #endif
     if (verbose) {
-        printlog("  ncave v%s\n", VERSION);
+        printf("  %s v%s\n", PROGRAM_NAME, PROGRAM_VERSION);
+        printf("  GFU v%s\n", VERSION);
         printlog("  MPI: initialised %d process(es)\n", nprocesses);
     }
 #if defined(DEBUG)
@@ -405,11 +412,15 @@ int main(int argc, char* argv[])
         printlog("  master PID = %3d\n", getpid());
 #endif
 
+    ncw_set_quitfn(quit);
+    ncu_set_quitfn(quit);
+
     if (verbose) {
         printlog("  input = %s\n", srcs[0]);
         for (i = 1; i < nsrc; ++i)
             printlog("          %s\n", srcs[i]);
-        printlog("  output = %s\n", srcs[nsrc]);
+        printlog("          (total %d files)\n", nsrc);
+        printlog("  output = %s\n", dst);
     }
 
     if (nvar == 0) {
@@ -595,15 +606,11 @@ int main(int argc, char* argv[])
      */
     if (nfield > 0)
         free(fields);
-    nsrc++;
-    for (i = 0; i < nsrc; ++i)
-        free(srcs[i]);
     free(srcs);
-    if (nvar > 0) {
-        for (i = 0; i < nvar; ++i)
-            free(vars[i]);
+    if (nvar > 0)
         free(vars);
-    }
+    if (ncvar > 0)
+        free(cvars);
 #if defined(MPI)
     MPI_Barrier(MPI_COMM_WORLD);
 #endif

@@ -288,6 +288,11 @@ int main(int argc, char* argv[])
     if (nvar != 0 && nvar_ex != 0)
         quit("can not use both \"-v\" and \"-x\"");
 
+    if (verbose) {
+        printf("  %s v%s\n", PROGRAM_NAME, PROGRAM_VERSION);
+        printf("  GFU v%s\n", VERSION);
+    }
+
     ncw_set_quitfn(quit);
     ncu_set_quitfn(quit);
 

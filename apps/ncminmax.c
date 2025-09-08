@@ -26,8 +26,9 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.12"
+#define PROGRAM_VERSION "0.13"
 #define VERBOSE_DEF 0
+#define NVAR_INC 10
 
 #define MASKTYPE_NONE 0
 #define MASKTYPE_BINARY 1
@@ -41,7 +42,7 @@ int doave = 0;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s <file> <var> [-m <file> <var>] [-a] [-s] [-v {0*|1|2}]\n", PROGRAM_NAME);
+    printf("  Usage: %s <file> <var> [...] [-m <file> <var>] [-a] [-s] [-v {0*|1|2}]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -m <file> <var> -- set mask (for 2D or 3D variables: either 2D with 0s and 1s;\n");
@@ -54,7 +55,7 @@ static void usage(int status)
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname, char** varname, char** mfname, char** mvarname)
+static void parse_commandline(int argc, char* argv[], char** fname, int* nvar, char*** vars, char** mfname, char** mvarname)
 {
     int i;
 
@@ -100,9 +101,14 @@ static void parse_commandline(int argc, char* argv[], char** fname, char** varna
             *fname = argv[i];
             i++;
             if (i == argc || argv[i][0] == '-')
-                quit("no variable name specified");
-            *varname = argv[i];
-            i++;
+                quit("no variable specified");
+            while (i < argc && argv[i][0] != '-') {
+                if (*nvar % NVAR_INC == 0)
+                    *vars = realloc(*vars, (*nvar + NVAR_INC) * sizeof(void*));
+                (*vars)[*nvar] = argv[i];
+                (*nvar)++;
+                i++;
+            }
         } else
             usage(1);
     }
@@ -113,197 +119,218 @@ static void parse_commandline(int argc, char* argv[], char** fname, char** varna
 int main(int argc, char* argv[])
 {
     char* fname = NULL;
-    char* varname = NULL;
+    int nvar = 0;
+    char** vars = NULL;
     char* mfname = NULL;
     char* mvarname = NULL;
 
-    int ncid = -1, varid = -1, ndims = -1;
-    int dimids[NC_MAX_DIMS];
-    size_t dimlens[NC_MAX_DIMS];
-    size_t i, ij, size, slabsize;
+    int vid;
 
-    int mncid = -1, mvarid = -1;
-    size_t msize;
+    parse_commandline(argc, argv, &fname, &nvar, &vars, &mfname, &mvarname);
 
-    double* v = NULL;
-    int* mask = NULL;
-    int masktype = MASKTYPE_NONE;
+    for (vid = 0; vid < nvar; ++vid) {
+        char* var = vars[vid];
 
-    double min = DBL_MAX;
-    double max = -DBL_MAX;
-    double ave = 0.0;
-    size_t n = 0;
-    size_t imin = 0;
-    size_t imax = 0;
-    int nk, k;
+        int ncid = -1, varid = -1, ndims = -1;
+        int dimids[NC_MAX_DIMS];
+        size_t dimlens[NC_MAX_DIMS];
+        size_t i, ij, size, slabsize;
 
-    parse_commandline(argc, argv, &fname, &varname, &mfname, &mvarname);
+        int mncid = -1, mvarid = -1;
+        size_t msize;
 
-    nk = ncu_getnfields(fname, varname);
-    if (nk == 0)
-        nk = 1;
-    if (nk == 1 && verbose == 2)
-        verbose = 1;
+        double* v = NULL;
+        int* mask = NULL;
+        int masktype = MASKTYPE_NONE;
 
-    ncw_open(fname, NC_NOWRITE, &ncid);
-    ncw_inq_varid(ncid, varname, &varid);
-    ncw_inq_var(ncid, varid, NULL, NULL, &ndims, dimids, NULL);
-    for (i = 0; i < ndims; ++i)
-        ncw_inq_dimlen(ncid, dimids[i], &dimlens[i]);
-    size = ncw_get_varsize(ncid, varid);
-    if (nk > 1)
-        ncw_close(ncid);
+        double min = DBL_MAX;
+        double max = -DBL_MAX;
+        double ave = 0.0;
+        size_t n = 0;
+        size_t imin = 0;
+        size_t imax = 0;
+        int nk, k;
 
-    v = calloc(size / nk, sizeof(double));
+        nk = ncu_getnfields(fname, var);
+        if (nk == 0)
+            nk = 1;
+        if (nk == 1 && verbose == 2)
+            verbose = 1;
 
-    if (mfname != NULL) {
-        ncw_open(mfname, NC_NOWRITE, &mncid);
-        ncw_inq_varid(mncid, mvarname, &mvarid);
-        msize = ncw_get_varsize(mncid, mvarid);
-        if (msize != size / nk)
-            quit("mask size %zu is not equal to layer size %zu", msize, size / nk);
-        mask = calloc(msize, sizeof(int));
-        ncw_get_var_int(mncid, mvarid, mask);
-        ncw_close(mncid);
+        ncw_set_quitfn(quit);
+        ncu_set_quitfn(quit);
 
-        masktype = MASKTYPE_BINARY;
-        if (nk > 1) {
-            for (i = 0; i < msize; ++i) {
-                if (mask[i] > 1) {
-                    masktype = MASKTYPE_NLAYERS;
-                    break;
-                }
-            }
-            if (masktype == MASKTYPE_BINARY)
-                for (i = 0; i < msize; ++i)
-                    if (mask[i] != 0)
-                        mask[i] = nk;
-        }
-    }
-
-    if (verbose > 1)
-        printf("  %s:\n", fname);
-    for (k = 0, ij = 0; k < nk; ++k) {
-        double min_k = DBL_MAX;
-        double max_k = -DBL_MAX;
-        double ave_k = 0.0;
-        size_t n_k = 0, imin_k = 0, imax_k = 0;
-
+        ncw_open(fname, NC_NOWRITE, &ncid);
+        ncw_inq_varid(ncid, var, &varid);
+        ncw_inq_var(ncid, varid, NULL, NULL, &ndims, dimids, NULL);
+        for (i = 0; i < ndims; ++i)
+            ncw_inq_dimlen(ncid, dimids[i], &dimlens[i]);
+        size = ncw_get_varsize(ncid, varid);
         if (nk > 1)
-            ncu_readfield_double(fname, varname, k, -1, 1, nk, v);
-        else {
-            ncu_readvardouble(ncid, varid, size, v);
             ncw_close(ncid);
+
+        v = calloc(size / nk, sizeof(double));
+
+        if (mfname != NULL) {
+            ncw_open(mfname, NC_NOWRITE, &mncid);
+            ncw_inq_varid(mncid, mvarname, &mvarid);
+            msize = ncw_get_varsize(mncid, mvarid);
+            if (msize != size / nk)
+                quit("mask size %zu is not equal to layer size %zu", msize, size / nk);
+            mask = calloc(msize, sizeof(int));
+            ncw_get_var_int(mncid, mvarid, mask);
+            ncw_close(mncid);
+
+            masktype = MASKTYPE_BINARY;
+            if (nk > 1) {
+                for (i = 0; i < msize; ++i) {
+                    if (mask[i] > 1) {
+                        masktype = MASKTYPE_NLAYERS;
+                        break;
+                    }
+                }
+                if (masktype == MASKTYPE_BINARY)
+                    for (i = 0; i < msize; ++i)
+                        if (mask[i] != 0)
+                            mask[i] = nk;
+            }
         }
 
-        for (i = 0; i < size / nk; ++i, ++ij) {
-            if (mask != NULL && mask[i] <= k)
-                continue;
-            if (isnan(v[i])) {
-                if (!strict)
+        if (verbose > 1 && vid == 0)
+            printf("  %s:\n", fname);
+        for (k = 0, ij = 0; k < nk; ++k) {
+            double min_k = DBL_MAX;
+            double max_k = -DBL_MAX;
+            double ave_k = 0.0;
+            size_t n_k = 0, imin_k = 0, imax_k = 0;
+
+            if (nk > 1)
+                ncu_readfield_double(fname, var, k, -1, 1, nk, v);
+            else {
+                ncu_readvardouble(ncid, varid, size, v);
+                ncw_close(ncid);
+            }
+
+            for (i = 0; i < size / nk; ++i, ++ij) {
+                if (mask != NULL && mask[i] <= k)
                     continue;
-                else
-                    quit("%s(%d) = missing", varname, i);
-            }
-            if (v[i] > max) {
-                max = v[i];
-                imax = ij;
-            }
-            if (v[i] < min) {
-                min = v[i];
-                imin = ij;
-            }
-            ave += v[i];
-            n++;
-            if (verbose > 1) {
-                if (v[i] > max_k) {
-                    max_k = v[i];
-                    imax_k = i;
+                if (isnan(v[i])) {
+                    if (!strict)
+                        continue;
+                    else
+                        quit("%s(%d) = missing", var, i);
                 }
-                if (v[i] < min_k) {
-                    min_k = v[i];
-                    imin_k = i;
+                if (v[i] > max) {
+                    max = v[i];
+                    imax = ij;
                 }
-                ave_k += v[i];
-                n_k++;
+                if (v[i] < min) {
+                    min = v[i];
+                    imin = ij;
+                }
+                ave += v[i];
+                n++;
+                if (verbose > 1) {
+                    if (v[i] > max_k) {
+                        max_k = v[i];
+                        imax_k = i;
+                    }
+                    if (v[i] < min_k) {
+                        min_k = v[i];
+                        imin_k = i;
+                    }
+                    ave_k += v[i];
+                    n_k++;
+                }
+            }
+            if (verbose == 1 && nk > 1) {
+                printf(".");
+                fflush(stdout);
+            }
+            if (verbose > 1 && n_k > 0) {
+                if (doave) {
+                    ave_k /= (double) n_k;
+                    printf("    %s: %d: %.4g %.4g %.4g (", var, k, min_k, ave_k, max_k);
+                } else
+                    printf("    %s: %d: %.4g %.4g (", var, k, min_k, max_k);
+                for (i = ndims - 2, slabsize = size / nk; i < ndims; ++i) {
+                    size_t ii;
+
+                    slabsize /= dimlens[i];
+                    ii = imin_k / slabsize;
+                    printf((i == ndims - 2) ? "%lu" : ", %lu", ii);
+                    imin_k = imin_k - slabsize * ii;
+                }
+                printf(") (");
+                for (i = ndims - 2, slabsize = size / nk; i < ndims; ++i) {
+                    size_t ii;
+
+                    slabsize /= dimlens[i];
+                    ii = imax_k / slabsize;
+                    printf((i == ndims - 2) ? "%lu" : ", %lu", ii);
+                    imax_k = imax_k - slabsize * ii;
+                }
+                printf(")\n");
             }
         }
-        if (verbose == 1 && nk > 1) {
-            printf(".");
-            fflush(stdout);
-        }
-        if (verbose > 1 && n_k > 0) {
-            if (doave) {
-                ave_k /= (double) n_k;
-                printf("    %s: %d: %.4g %.4g %.4g (", varname, k, min_k, ave_k, max_k);
-            } else
-                printf("    %s: %d: %.4g %.4g (", varname, k, min_k, max_k);
-            for (i = ndims - 2, slabsize = size / nk; i < ndims; ++i) {
+        if (verbose == 1 && nk > 1)
+            printf("\n");
+
+        if (mask != NULL)
+            free(mask);
+        free(v);
+
+        ave /= (double) n;
+        if (verbose) {
+            if (verbose == 1 && vid == 0)
+                printf("  %s:\n", fname);
+            printf("    %s:\n", var);
+            printf("      min = %.4g\n", min);
+            printf("      max = %.4g\n", max);
+            if (doave)
+                printf("      ave = %.4g\n", ave);
+            printf("      size = ");
+            for (i = 0; i < ndims; ++i)
+                printf((i > 0) ? " x %lu" : "%lu", dimlens[i]);
+            printf("\n");
+            printf("      imin = %lu (", imin);
+            for (i = 0, slabsize = size; i < ndims; ++i) {
                 size_t ii;
 
                 slabsize /= dimlens[i];
-                ii = imin_k / slabsize;
-                printf((i == ndims - 2) ? "%lu" : ", %lu", ii);
-                imin_k = imin_k - slabsize * ii;
-            }
-            printf(") (");
-            for (i = ndims - 2, slabsize = size / nk; i < ndims; ++i) {
-                size_t ii;
-
-                slabsize /= dimlens[i];
-                ii = imax_k / slabsize;
-                printf((i == ndims - 2) ? "%lu" : ", %lu", ii);
-                imax_k = imax_k - slabsize * ii;
+                ii = imin / slabsize;
+                printf((i == 0) ? "%lu" : ", %lu", ii);
+                imin = imin - slabsize * ii;
             }
             printf(")\n");
+            printf("      imax = %lu (", imax);
+            slabsize = size;
+            for (i = 0, slabsize = size; i < ndims; ++i) {
+                size_t ii;
+
+                slabsize /= dimlens[i];
+                ii = imax / slabsize;
+                printf((i == 0) ? "%lu" : ", %lu", ii);
+                imax = imax - slabsize * ii;
+            }
+            printf(")\n");
+            printf("      %zu valid values (%.2f%%)\n", n, (double) n / (double) size * 100.0);
+        } else {
+            if (nvar == 1) {
+                if (doave)
+                    printf("  %.4g %.4g %.4g\n", min, ave, max);
+                else
+                    printf("  %.4g %.4g\n", min, max);
+            } else {
+                if (doave)
+                    printf("  %s: %.4g %.4g %.4g\n", var, min, ave, max);
+                else
+                    printf("  %s: %.4g %.4g\n", var, min, max);
+            }
         }
     }
-    if (verbose == 1 && nk > 1)
-        printf("\n");
 
-    if (mask != NULL)
-        free(mask);
-    free(v);
+    free(vars);
 
-    ave /= (double) n;
-    if (verbose) {
-        if (verbose == 1)
-            printf("  %s:\n", fname);
-        printf("    %s: min = %.4g\n", varname, min);
-        printf("    %s: max = %.4g\n", varname, max);
-        if (doave)
-            printf("    %s: ave = %.4g\n", varname, ave);
-        printf("    %s: size = ", varname);
-        for (i = 0; i < ndims; ++i)
-            printf((i > 0) ? " x %lu" : "%lu", dimlens[i]);
-        printf("\n");
-        printf("    %s: imin = %lu (", varname, imin);
-        for (i = 0, slabsize = size; i < ndims; ++i) {
-            size_t ii;
-
-            slabsize /= dimlens[i];
-            ii = imin / slabsize;
-            printf((i == 0) ? "%lu" : ", %lu", ii);
-            imin = imin - slabsize * ii;
-        }
-        printf(")\n");
-        printf("    %s: imax = %lu (", varname, imax);
-        slabsize = size;
-        for (i = 0, slabsize = size; i < ndims; ++i) {
-            size_t ii;
-
-            slabsize /= dimlens[i];
-            ii = imax / slabsize;
-            printf((i == 0) ? "%lu" : ", %lu", ii);
-            imax = imax - slabsize * ii;
-        }
-        printf(")\n");
-        printf("    %s: %zu valid values (%.2f%%)\n", varname, n, (double) n / (double) size * 100.0);
-    } else {
-        if (doave)
-            printf("  %.4g %.4g %.4g\n", min, ave, max);
-        else
-            printf("  %.4g %.4g\n", min, max);
-    }
     return 0;
 }

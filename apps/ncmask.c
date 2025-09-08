@@ -150,6 +150,8 @@ int main(int argc, char* argv[])
     if (mfname == NULL)
         quit("no mask specified");
 
+    ncw_set_quitfn(quit);
+
     /*
      * data
      */
