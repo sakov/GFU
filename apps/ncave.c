@@ -139,7 +139,7 @@ static void dir_rmallifexists(char dirname[])
  */
 static void usage(int exitstatus)
 {
-    printf("  Usage: ncave [-a <var> [...]] [-c <var> [...]] -i <src> [...] -o <dst>} [-f] [-v]\n");
+    printf("  Usage: ncave [-a <var> [...]] [-c <var> [...]] -i <src> [...] -o <dst> [-f] [-v]\n");
     printf("         ncave -v\n");
     printf("  Parameters:\n");
     printf("    -a <var>       -- variable to be averaged over all input files\n");
