@@ -38,7 +38,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncave"
-#define PROGRAM_VERSION "0.02"
+#define PROGRAM_VERSION "0.03"
 
 #define ALIGN __attribute__((aligned(32)))
 
@@ -149,6 +149,12 @@ static void usage(int exitstatus)
     printf("    -o <dst>       -- output file\n");
     printf("    -f             -- overwrite destination if exists\n");
     printf("    -v             -- verbose/version\n");
+    printf("  Note: 0- or 1-dimensional variables can be copied only (and are copied\n");
+    printf("        by default from the first input file)\n");
+    printf("  Note: for best efficiency the inputs should be chunked by layers\n");
+#if defined(MPI)
+    printf("  Note: compiled with MPI parallelisation\n");
+#endif
     exit(exitstatus);
 }
 
@@ -183,7 +189,11 @@ static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, c
                 while (i < argc && argv[i][0] != '-') {
                     if (*nvar % NVAR_INC == 0)
                         *vars = realloc(*vars, (*nvar + NVAR_INC) * sizeof(void*));
-                    (*vars)[*nvar] = argv[i];
+                    /*
+                     * using strdup because without "-a" the variables are
+                     * copied from data files
+                     */
+                    (*vars)[*nvar] = strdup(argv[i]);
                     (*nvar)++;
                     i++;
                 }
@@ -194,7 +204,7 @@ static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, c
                 while (i < argc && argv[i][0] != '-') {
                     if (*ncvar % NVAR_INC == 0)
                         *cvars = realloc(*cvars, (*ncvar + NVAR_INC) * sizeof(void*));
-                    (*cvars)[*ncvar] = argv[i];
+                    (*cvars)[*ncvar] = strdup(argv[i]);
                     (*ncvar)++;
                     i++;
                 }
@@ -237,7 +247,7 @@ static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, c
 
 /**
  */
-static void getvars(char* fname, int* nvar, char*** vars)
+static void getvars(char* fname, int* nvar, char*** vars, int* ncvar, char*** cvars)
 {
     int ncid;
     int nvartotal, vid;
@@ -246,6 +256,7 @@ static void getvars(char* fname, int* nvar, char*** vars)
     ncw_inq_nvars(ncid, &nvartotal);
     assert(nvartotal > 0);
     *vars = malloc(nvartotal * sizeof(char*));
+    *cvars = malloc(nvartotal * sizeof(char*));
     for (vid = 0; vid < nvartotal; ++vid) {
         int ndims, nd;
         size_t dimlen[4];
@@ -267,11 +278,13 @@ static void getvars(char* fname, int* nvar, char*** vars)
                 break;
         nd = ndims - i;
 
-        if (nd < 2)
-            continue;
-
-        (*vars)[*nvar] = strdup(varname);
-        (*nvar)++;
+        if (nd >= 2) {
+            (*vars)[*nvar] = strdup(varname);
+            (*nvar)++;
+        } else {
+            (*cvars)[*ncvar] = strdup(varname);
+            (*ncvar)++;
+        }
     }
     ncw_close(ncid);
 }
@@ -309,11 +322,10 @@ static void getfields(char* fname, int nvar, char** vars, int* nfield, field** f
             f->fid = *nfield;
             f->varname = vars[v];
             if (nd < 2) {
-                f->nj = -1;
-                f->ni = -1;
-                f->nk = -1;
-                f->k = -1;
-                ncw_inq_varsize(ncid, varid, &f->n);
+                if (verbose)
+                    printlog("    warning: %s: %d-dimensional variable: can be copied only (-c option); skipped\n", vars[v], nd);
+                vars[v][0] = 0; /* mark as bad */
+                continue;
             } else if (nd == 2) {
                 f->nj = dimlen[i];
                 f->ni = dimlen[i + 1];
@@ -403,8 +415,8 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 #endif
     if (verbose) {
-        printf("  %s v%s\n", PROGRAM_NAME, PROGRAM_VERSION);
-        printf("  GFU v%s\n", VERSION);
+        printlog("  %s v%s\n", PROGRAM_NAME, PROGRAM_VERSION);
+        printlog("  GFU v%s\n", VERSION);
         printlog("  MPI: initialised %d process(es)\n", nprocesses);
     }
 #if defined(DEBUG)
@@ -425,7 +437,7 @@ int main(int argc, char* argv[])
 
     if (nvar == 0) {
         if (ncvar == 0) {
-            getvars(srcs[0], &nvar, &vars);
+            getvars(srcs[0], &nvar, &vars, &ncvar, &cvars);
             if (verbose)
                 printlog("  found %d variable(s) to average:", nvar);
         }
@@ -541,6 +553,8 @@ int main(int argc, char* argv[])
         for (i = 0; i < nvar; ++i) {
             int varid_src;
 
+            if (vars[i][0] == 0)
+                continue;
             ncw_inq_varid(ncid_src, vars[i], &varid_src);
             ncw_copy_vardef(ncid_src, varid_src, ncid_dst);
         }
@@ -607,10 +621,16 @@ int main(int argc, char* argv[])
     if (nfield > 0)
         free(fields);
     free(srcs);
-    if (nvar > 0)
+    if (nvar > 0) {
+        for (i = 0; i < nvar; ++i)
+            free(vars[i]);
         free(vars);
-    if (ncvar > 0)
+    }
+    if (ncvar > 0) {
+        for (i = 0; i < ncvar; ++i)
+            free(cvars[i]);
         free(cvars);
+    }
 #if defined(MPI)
     MPI_Barrier(MPI_COMM_WORLD);
 #endif

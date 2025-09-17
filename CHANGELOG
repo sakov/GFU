@@ -1,3 +1,8 @@
+v0.34
+  PS 20250917
+  - NCAVE: skipping averaging over 0d and 1d variables. Added these variables
+    to the copying list by default. Modified usage accordingly. Corrected some
+    allocation/deallocation defects.
 v0.33
   PS 20250905
   - NCMINMAX: modified to allow multiple variables in command line.
