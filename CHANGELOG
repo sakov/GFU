@@ -1,3 +1,7 @@
+v0.36
+  PS 20251017
+  - NCD2F: added option "-f" to process float variables as well. Can be used for
+    deflating and/or re-chunking them by layers.
 v0.35
   PS 20251010
   - Fixed defect in ncu_readfield(), ncu_readfield_double(), ncu_writefield(),

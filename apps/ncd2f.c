@@ -27,7 +27,7 @@
 #include "stringtable.h"
 
 #define PROGRAM_NAME "ncd2f"
-#define PROGRAM_VERSION "0.06"
+#define PROGRAM_VERSION "0.07"
 
 #define VERBOSE_DEF 1
 
@@ -42,7 +42,7 @@ int verbose = VERBOSE_DEF;
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> -o <dst> [{-v <var> [...] | -x <var> [...]}] [-O] [-N]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> [{-v <var> [...] | -x <var> [...]}] [-O] [-N] [-f]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src>       -- source file\n");
@@ -52,13 +52,14 @@ static void usage(int status)
     printf("    -x <var> [...] -- exclude these variables\n");
     printf("    -O             -- clobber destination (default: append but do not overwrite existing variables)\n");
     printf("    -N             -- copy dimensions in the original order (for rebuilding NEMO)\n");
+    printf("    -f             -- do not skip float variables (for deflating and/or re-chunking by layers)\n");
     printf("    -v             -- print version and exit\n");
     exit(status);
 }
 
 /**
  */
-static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* nvar_ex, char*** vars_ex, int* clobber, int* orig)
+static void parse_commandline(int argc, char* argv[], char** fname_src, char** fname_dst, int* nvar, char*** vars, int* nvar_ex, char*** vars_ex, int* clobber, int* orig, int* processall)
 {
     int i;
 
@@ -112,6 +113,9 @@ static void parse_commandline(int argc, char* argv[], char** fname_src, char** f
             i++;
         } else if (strcmp(argv[i], "-N") == 0) {
             *orig = 1;
+            i++;
+        } else if (strcmp(argv[i], "-f") == 0) {
+            *processall = 1;
             i++;
         } else
             quit("unknown option \"%s\"", argv[i]);
@@ -266,6 +270,7 @@ int main(int argc, char* argv[])
     char** varnames_ex = NULL;
     int clobber = 0;
     int orig = 0;
+    int processall = 0;
 
     stringtable* exclude = NULL;
 
@@ -277,7 +282,7 @@ int main(int argc, char* argv[])
     int ncid_src, ncid_dst;
     int vid;
 
-    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &nvar_ex, &varnames_ex, &clobber, &orig);
+    parse_commandline(argc, argv, &fname_src, &fname_dst, &nvar, &varnames_src, &nvar_ex, &varnames_ex, &clobber, &orig, &processall);
 
     if (fname_src == NULL)
         quit("no input file specified");
@@ -335,7 +340,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    if (nvar == 0 && nvar_ex == 0) {
+    if (nvar == 0 && nvar_ex == 0 && (nvar_cp == 0 || !processall)) {
         if (verbose)
             printf("  nothing to do!\n");
         ncw_close(ncid_src);
