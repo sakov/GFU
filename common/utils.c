@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <float.h>
+#include <stdint.h>
 #include <errno.h>
 #include <assert.h>
 #if defined(MPI)
@@ -175,8 +176,10 @@ void* alloc2d(size_t nj, size_t ni, size_t unitsize)
     void** pp;
     int i;
 
-    if (ni <= 0 || nj <= 0)
-        quit("alloc2d(): invalid size (nj = %d, ni = %d)", nj, ni);
+    if (ni == 0 || nj == 0 || unitsize == 0)
+        quit("alloc2d(): invalid size (nj = %zt, ni = %zt, unitsize = %zt)", nj, ni, unitsize);
+    if (SIZE_MAX / nj / sizeof(void*) == 0 || SIZE_MAX / nj / ni / unitsize == 0 || nj * sizeof(void*) > SIZE_MAX - nj * ni * unitsize)
+        quit("alloc2d: allocation size overflow: nj = %zt, ni = %zt, unitsize = %zt", nj, ni, unitsize);
 
     size = nj * sizeof(void*) + nj * ni * unitsize;
     if ((p = malloc(size)) == NULL) {

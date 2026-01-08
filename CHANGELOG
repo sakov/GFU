@@ -1,3 +1,6 @@
+v0.37
+  PS 20250109
+  - Corrected checks in alloc2d().
 v0.36
   PS 20251017
   - NCD2F: added option "-f" to process float variables as well. Can be used for
