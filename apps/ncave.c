@@ -38,7 +38,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncave"
-#define PROGRAM_VERSION "0.03"
+#define PROGRAM_VERSION "0.04"
 
 #define ALIGN __attribute__((aligned(32)))
 
@@ -50,6 +50,7 @@
 
 int verbose = 0;
 int force = 0;
+int copytherest = 0;
 
 int nprocesses = 1;
 int rank = 0;
@@ -145,6 +146,7 @@ static void usage(int exitstatus)
     printf("    -a <var>       -- variable to be averaged over all input files\n");
     printf("                      (default: all variables with 2 or more dimensions)\n");
     printf("    -c <var>       -- variables to be copied from the first input file\n");
+    printf("    -c             -- copy all non-averaged variables from the first input file\n");
     printf("    -i <src> [...] -- list of input files\n");
     printf("    -o <dst>       -- output file\n");
     printf("    -f             -- overwrite destination if exists\n");
@@ -199,8 +201,6 @@ static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, c
                 }
             } else if (argv[i][1] == 'c') {
                 i++;
-                if (i >= argc)
-                    quit("no variable specified after \"-c\"\n");
                 while (i < argc && argv[i][0] != '-') {
                     if (*ncvar % NVAR_INC == 0)
                         *cvars = realloc(*cvars, (*ncvar + NVAR_INC) * sizeof(void*));
@@ -208,6 +208,8 @@ static void parse_commandline(int argc, char* argv[], int* nsrc, char*** srcs, c
                     (*ncvar)++;
                     i++;
                 }
+                if (*ncvar == 0)
+                    copytherest = 1;
             } else if (argv[i][1] == 'i') {
                 i++;
                 if (i >= argc)
@@ -285,6 +287,44 @@ static void getvars(char* fname, int* nvar, char*** vars, int* ncvar, char*** cv
             (*cvars)[*ncvar] = strdup(varname);
             (*ncvar)++;
         }
+    }
+    ncw_close(ncid);
+}
+
+/** Adds all variables in the file that are not in `vars' (averaged) to 'cvars'
+ ** (copied).
+ */
+static void getcvars(char* fname, int nvar, char** vars, int* ncvar, char*** cvars)
+{
+    int ncid;
+    int nvartotal, vid;
+
+    ncw_open(fname, NC_NOWRITE, &ncid);
+    ncw_inq_nvars(ncid, &nvartotal);
+    assert(nvartotal > 0);
+    *cvars = malloc(nvartotal * sizeof(char*));
+    for (vid = 0; vid < nvartotal; ++vid) {
+        int ndims;
+        size_t dimlen[4];
+        char varname[NC_MAX_NAME];
+        int i;
+
+        ncw_inq_varname(ncid, vid, varname);
+        for (i = 0; i < nvar; ++i)
+            if (strcmp(varname, vars[i]) == 0)
+                break;
+        if (i < nvar)
+            continue;
+        
+        ncw_inq_vardims(ncid, vid, 4, &ndims, dimlen);
+        if (ndims > 4)
+            quit("%s: %s: do not know how to treat a %d-dimensional variable", fname, varname, ndims);
+        if (ncw_var_hasunlimdim(ncid, vid)) {
+            if (dimlen[0] != 1)
+                quit("%s: %s: unlimited dimension length is allowed to be 1 only", fname, varname);
+        }
+        (*cvars)[*ncvar] = strdup(varname);
+        (*ncvar)++;
     }
     ncw_close(ncid);
 }
@@ -441,8 +481,12 @@ int main(int argc, char* argv[])
             if (verbose)
                 printlog("  found %d variable(s) to average:", nvar);
         }
-    } else if (verbose)
-        printlog("  averaging %d variable(s):", nvar);
+    } else {
+        if (verbose)
+            printlog("  averaging %d variable(s):", nvar);
+        if (copytherest)
+            getcvars(srcs[0], nvar, vars, &ncvar, &cvars);
+    }
     if (nvar == 0 && ncvar == 0)
         quit("no variables to average");
     if (verbose) {
