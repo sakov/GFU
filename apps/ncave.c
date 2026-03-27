@@ -143,9 +143,9 @@ static void usage(int exitstatus)
     printf("  Usage: ncave [-a <var> [...]] [-c <var> [...]] -i <src> [...] -o <dst> [-f] [-v]\n");
     printf("         ncave -v\n");
     printf("  Parameters:\n");
-    printf("    -a <var>       -- variable to be averaged over all input files\n");
+    printf("    -a <var> [...] -- variable to be averaged over all input files\n");
     printf("                      (default: all variables with 2 or more dimensions)\n");
-    printf("    -c <var>       -- variables to be copied from the first input file\n");
+    printf("    -c <var> [...] -- variables to be copied from the first input file\n");
     printf("    -c             -- copy all non-averaged variables from the first input file\n");
     printf("    -i <src> [...] -- list of input files\n");
     printf("    -o <dst>       -- output file\n");

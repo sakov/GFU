@@ -4,7 +4,7 @@ v0.38
     all variables in the first file not specified for averaging are copied from
     it.
 v0.37
-  PS 20250109
+  PS 20260109
   - Corrected checks in alloc2d().
 v0.36
   PS 20251017
