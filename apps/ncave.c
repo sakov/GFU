@@ -38,7 +38,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncave"
-#define PROGRAM_VERSION "0.04"
+#define PROGRAM_VERSION "0.05"
 
 #define ALIGN __attribute__((aligned(32)))
 
@@ -140,11 +140,15 @@ static void dir_rmallifexists(char dirname[])
  */
 static void usage(int exitstatus)
 {
-    printf("  Usage: ncave [-a <var> [...]] [-c <var> [...]] -i <src> [...] -o <dst> [-f] [-v]\n");
+#if defined(MPI)
+    printf("  Usage: [mpirun -np <ncpu>] ncave [-a <var> [...]] [-c [<var> [...]]] -i <src> [...] -o <dst> [-f] [-v]\n");
+#else
+    printf("  Usage: ncave [-a <var> [...]] [-c [<var> [...]]] -i <src> [...] -o <dst> [-f] [-v]\n");
+#endif
     printf("         ncave -v\n");
     printf("  Parameters:\n");
-    printf("    -a <var> [...] -- variable to be averaged over all input files\n");
-    printf("                      (default: all variables with 2 or more dimensions)\n");
+    printf("    -a <var> [...] -- variable to be averaged (default: all variables with\n");
+    printf("                      2 or more dimensions)\n");
     printf("    -c <var> [...] -- variables to be copied from the first input file\n");
     printf("    -c             -- copy all non-averaged variables from the first input file\n");
     printf("    -i <src> [...] -- list of input files\n");
@@ -154,9 +158,6 @@ static void usage(int exitstatus)
     printf("  Note: 0- or 1-dimensional variables can be copied only (and are copied\n");
     printf("        by default from the first input file)\n");
     printf("  Note: for best efficiency the inputs should be chunked by layers\n");
-#if defined(MPI)
-    printf("  Note: compiled with MPI parallelisation\n");
-#endif
     exit(exitstatus);
 }
 

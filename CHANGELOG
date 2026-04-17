@@ -1,3 +1,6 @@
+v0.39
+  PS 20260417
+  - NCAVE: a slight modification of usage().
 v0.38
   PS 20260327
   - NCAVE: added a new option: when "-c" is entered with no variables after it,
