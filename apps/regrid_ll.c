@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.14"
+#define PROGRAM_VERSION "0.15"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -775,7 +775,7 @@ int main(int argc, char* argv[])
         points_north = malloc(nij_src * sizeof(point));
 
     if (transfermask && nkdst == NULL) {
-        int npoint = 0, npoint_south = 0, npoint_north = 0;
+        int npoint_south = 0, npoint_north = 0;
         int have_polar_south = 0, have_polar_north = 0;
         delaunay* d_south = NULL;
         delaunay* d_north = NULL;
@@ -812,7 +812,7 @@ int main(int argc, char* argv[])
             if (donorth && isfinite(xsrc_north[i])) {
                 if (hypot(xsrc_north[i], ysrc_north[i]) < POLAR_EPS) {
                     if (have_polar_north)
-                        goto skip_north_mask;
+                        continue;
                     else
                         have_polar_north = 1;
                 }
@@ -822,8 +822,6 @@ int main(int argc, char* argv[])
                 p->z = nksrc[i];
                 npoint_north++;
             }
-          skip_north_mask:
-            npoint++;
         }
 
         nkdst = calloc(nij_dst, sizeof(int));

@@ -1,3 +1,6 @@
+v0.41
+  PS 20260827
+  - REGRID_LL: cosmetic changes.
 v0.40
   PS 20260826
   - NCMINMAX: set minimal and maximal values to NaN if all values are invalid (fill values or NaNs).
