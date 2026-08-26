@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "ncminmax"
-#define PROGRAM_VERSION "0.13"
+#define PROGRAM_VERSION "0.14"
 #define VERBOSE_DEF 0
 #define NVAR_INC 10
 
@@ -279,6 +279,11 @@ int main(int argc, char* argv[])
         if (mask != NULL)
             free(mask);
         free(v);
+
+        if (min > max) {
+            min = NAN;
+            max = NAN;
+        }
 
         ave /= (double) n;
         if (verbose) {

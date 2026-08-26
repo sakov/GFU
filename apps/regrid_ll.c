@@ -330,6 +330,10 @@ int main(int argc, char* argv[])
         ncw_inq_unlimdim(ncid_src, &unlimdimid_src);
         if (dimlen_src[0] != 1)
             quit("%s: %s: %s can not handle more than one record yet", fname_src, varname, PROGRAM_NAME);
+    } else if (ndims_src == 4) {
+        if (dimlen_src[0] != 1)
+            quit("%s: %s: %s requires the first dimension of a 4-dimensional variable to have size 1", fname_src, varname, PROGRAM_NAME);
+        unlimdimid_src = dimids_src[0];
     }
     if (verbose) {
         printf("    size = ");

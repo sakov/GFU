@@ -1,3 +1,6 @@
+v0.40
+  PS 20260826
+  - NCMINMAX: set minimal and maximal values to NaN if all values are invalid (fill values or NaNs).
 v0.39
   PS 20260417
   - NCAVE: a slight modification of usage().
