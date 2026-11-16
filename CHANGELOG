@@ -1,3 +1,7 @@
+v0.43
+  PS 20261116
+  -- In ncutils.c consolidated typed read/write attribute handling and 2D slice
+     logic.
 v0.42
   PS 20260929
   - REGRID_LL: included lat = 0 into both interpolators.

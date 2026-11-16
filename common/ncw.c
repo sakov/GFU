@@ -33,7 +33,7 @@
 #include <errno.h>
 #include "ncw.h"
 
-const char ncw_version[] = "2.31.4";
+const char ncw_version[] = "2.32.0";
 
 /*
  * A flag -- whether ncw_copy_vardef() (re-)defines chunking by layers.
@@ -87,7 +87,11 @@ char* ncw_get_path(int ncid)
     if (status != NC_NOERR)
         quit("nc_inq_path(): failed for ncid = %d: %s", ncid, nc_strerror(status));
     path = malloc(len + 1);
+    if (path == NULL)
+        quit("ncw_get_path(): could not allocate %zu bytes: %s", len + 1, strerror(errno));
     status = nc_inq_path(ncid, NULL, path);
+    if (status != NC_NOERR)
+        quit("nc_inq_path(): failed for ncid = %d: %s", ncid, nc_strerror(status));
 
     return path;
 }
@@ -153,9 +157,29 @@ static char* uint2str(int n, const unsigned int v[])
 
     for (i = 0; i < n; ++i) {
         if (i < n - 1)
-            snprintf(next, STRBUFSIZE, "%d,", v[i]);
+            snprintf(next, STRBUFSIZE, "%u,", v[i]);
         else
-            snprintf(next, STRBUFSIZE, "%d", v[i]);
+            snprintf(next, STRBUFSIZE, "%u", v[i]);
+        assert(strlen(all) + strlen(next) + 2 < STRBUFSIZE);
+        strcat(all, next);
+    }
+    assert(strlen(all) + 2 < STRBUFSIZE);
+    strcat(all, ")");
+
+    return strdup(all);
+}
+
+static char* size_t2str(int n, const size_t v[])
+{
+    int i;
+    char all[STRBUFSIZE] = "(";
+    char next[STRBUFSIZE];
+
+    for (i = 0; i < n; ++i) {
+        if (i < n - 1)
+            snprintf(next, STRBUFSIZE, "%zu,", v[i]);
+        else
+            snprintf(next, STRBUFSIZE, "%zu", v[i]);
         assert(strlen(all) + strlen(next) + 2 < STRBUFSIZE);
         strcat(all, next);
     }
@@ -331,10 +355,10 @@ void ncw_sync(int ncid)
 
     nc_enddef(ncid);
 
-    status = ncsync(ncid);
+    status = nc_sync(ncid);
 
     if (status != NC_NOERR)
-        quit("\"%s\": ncsync(): failed: %s", ncw_get_path(ncid), nc_strerror(status));
+        quit("\"%s\": nc_sync(): failed: %s", ncw_get_path(ncid), nc_strerror(status));
 }
 
 void ncw_close(int ncid)
@@ -430,7 +454,7 @@ void ncw_inq_dimlen(int ncid, int dimid, size_t* len)
     int status = nc_inq_dimlen(ncid, dimid, len);
 
     if (status != NC_NOERR) {
-        char dimname[NC_MAX_NAME] = STR_UNKNOWN;
+        char dimname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_dimname(ncid, dimid, dimname);
         quit("\"%s\": nc_inq_dimlen(): failed for dimid = %d (dimname = \"%s\"): %s", ncw_get_path(ncid), dimid, dimname, nc_strerror(status));
@@ -446,7 +470,7 @@ void ncw_rename_dim(int ncid, const char oldname[], const char newname[])
     status = nc_rename_dim(ncid, dimid, newname);
 
     if (status != NC_NOERR)
-        quit("\"%s\": nc_rename_dim(): failed for dimid = %d (oldname = \"%s\", newname = \"%s\"): %s", dimid, oldname, newname, nc_strerror(status));
+        quit("\"%s\": nc_rename_dim(): failed for dimid = %d (oldname = \"%s\", newname = \"%s\"): %s", ncw_get_path(ncid), dimid, oldname, newname, nc_strerror(status));
 }
 
 void ncw_def_var(int ncid, const char varname[], nc_type xtype, int ndims, const int dimids[], int* varid)
@@ -462,7 +486,7 @@ void ncw_def_var_deflate(int ncid, int varid, int shuffle, int deflate, int defl
     int status = nc_def_var_deflate(ncid, varid, shuffle, deflate, deflate_level);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_def_var_deflate(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -474,7 +498,7 @@ void ncw_def_var_fill(int ncid, int varid, int nofill, void* fillvalue)
     int status = nc_def_var_fill(ncid, varid, nofill, fillvalue);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_def_var_fill(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -494,7 +518,7 @@ void ncw_inq_var(int ncid, int varid, char varname[], nc_type* xtype, int* ndims
     int status = nc_inq_var(ncid, varid, varname, xtype, ndims, dimids, natts);
 
     if (status != NC_NOERR) {
-        char varname2[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname2[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname2);
         quit("\"%s\": nc_inq_var(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname2, nc_strerror(status));
@@ -514,7 +538,7 @@ void ncw_inq_vartype(int ncid, int varid, nc_type* xtype)
     int status = nc_inq_vartype(ncid, varid, xtype);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_vartype(): failed for varid = %d (varname = %s): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -526,7 +550,7 @@ void ncw_inq_varndims(int ncid, int varid, int* ndims)
     int status = nc_inq_varndims(ncid, varid, ndims);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_varndims(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -538,7 +562,7 @@ void ncw_inq_vardimid(int ncid, int varid, int dimids[])
     int status = nc_inq_vardimid(ncid, varid, dimids);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_inq_vardimid(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -550,7 +574,7 @@ void ncw_inq_varnatts(int ncid, int varid, int* natts)
     int status = nc_inq_varnatts(ncid, varid, natts);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_varnatts(): failed for varid = %d (varnatts = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -578,7 +602,7 @@ void ncw_inq_var_deflate(int ncid, int varid, int* shuffle, int* deflate, int* d
     int status = nc_inq_var_deflate(ncid, varid, shuffle, deflate, deflate_level);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_var_delate(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -590,7 +614,7 @@ void ncw_inq_var_fill(int ncid, int varid, int* nofill, void* fillvalue)
     int status = nc_inq_var_fill(ncid, varid, nofill, fillvalue);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_var_fill(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -614,7 +638,7 @@ void ncw_put_var(int ncid, int varid, const void* v)
     int status = nc_put_var(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -626,7 +650,7 @@ void ncw_put_var_text(int ncid, int varid, const char v[])
     int status = nc_put_var_text(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_text(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -638,7 +662,7 @@ void ncw_put_var_schar(int ncid, int varid, const signed char v[])
     int status = nc_put_var_schar(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_schar(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -650,7 +674,7 @@ void ncw_put_var_uchar(int ncid, int varid, const unsigned char v[])
     int status = nc_put_var_uchar(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_uchar(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -662,7 +686,7 @@ void ncw_put_var_short(int ncid, int varid, const short v[])
     int status = nc_put_var_short(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_short(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -674,7 +698,7 @@ void ncw_put_var_ushort(int ncid, int varid, const unsigned short v[])
     int status = nc_put_var_ushort(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_ushort(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -686,7 +710,7 @@ void ncw_put_var_int(int ncid, int varid, const int v[])
     int status = nc_put_var_int(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_int(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -698,7 +722,7 @@ void ncw_put_var_uint(int ncid, int varid, const unsigned int v[])
     int status = nc_put_var_uint(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_uint(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -710,7 +734,7 @@ void ncw_put_var_long(int ncid, int varid, const long v[])
     int status = nc_put_var_long(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_long(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -722,7 +746,7 @@ void ncw_put_var_float(int ncid, int varid, const float v[])
     int status = nc_put_var_float(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -734,7 +758,7 @@ void ncw_put_var_double(int ncid, int varid, const double v[])
     int status = nc_put_var_double(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_var_double(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -746,7 +770,7 @@ void ncw_get_var(int ncid, int varid, void* v)
     int status = nc_get_var(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -758,7 +782,7 @@ void ncw_get_var_text(int ncid, int varid, char v[])
     int status = nc_get_var_text(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_text(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -770,7 +794,7 @@ void ncw_get_var_schar(int ncid, int varid, signed char v[])
     int status = nc_get_var_schar(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_schar(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -782,7 +806,7 @@ void ncw_get_var_uchar(int ncid, int varid, unsigned char v[])
     int status = nc_get_var_uchar(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_uchar(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -794,7 +818,7 @@ void ncw_get_var_short(int ncid, int varid, short int v[])
     int status = nc_get_var_short(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_short(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -806,7 +830,7 @@ void ncw_get_var_ushort(int ncid, int varid, unsigned short int v[])
     int status = nc_get_var_ushort(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_ushort(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -818,7 +842,7 @@ void ncw_get_var_int(int ncid, int varid, int v[])
     int status = nc_get_var_int(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_int(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -830,7 +854,7 @@ void ncw_get_var_uint(int ncid, int varid, unsigned int v[])
     int status = nc_get_var_uint(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_uint(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -842,7 +866,7 @@ void ncw_get_var_float(int ncid, int varid, float v[])
     int status = nc_get_var_float(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -859,7 +883,7 @@ void ncw_get_var_float_fixerange(int ncid, int varid, float v[])
 
     ncw_inq_vartype(ncid, varid, &type);
     if (status != NC_ERANGE || type != NC_DOUBLE) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -869,6 +893,9 @@ void ncw_get_var_float_fixerange(int ncid, int varid, float v[])
         size_t size = ncw_get_varsize(ncid, varid);
         double* vv = malloc(size * sizeof(double));
         size_t i;
+
+        if (vv == NULL)
+            quit("\"%s\": ncw_get_var_float_fixerange(): could not allocate memory: %s", ncw_get_path(ncid), strerror(errno));
 
         ncw_get_var_double(ncid, varid, vv);
         for (i = 0; i < size; ++i)
@@ -886,7 +913,7 @@ void ncw_get_var_double(int ncid, int varid, double v[])
     int status = nc_get_var_double(ncid, varid, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var_double(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -898,7 +925,7 @@ void ncw_get_var1_double(int ncid, int varid, const size_t len[], double* in)
     int status = nc_get_var1_double(ncid, varid, len, in);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_var1_double(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -910,7 +937,7 @@ void ncw_put_vara(int ncid, int varid, const size_t start[], const size_t count[
     int status = nc_put_vara(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_vara(): failed for varid = %d (varname = \"%s\"): %s\n", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -922,12 +949,12 @@ void ncw_put_vara_text(int ncid, int varid, const size_t start[], const size_t c
     int status = nc_put_vara_text(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": ncw_put_vara_text(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": ncw_put_vara_text(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -936,12 +963,12 @@ void ncw_put_vara_short(int ncid, int varid, const size_t start[], const size_t 
     int status = nc_put_vara_short(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": ncw_put_vara_short(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": ncw_put_vara_short(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -950,12 +977,12 @@ void ncw_put_vara_ushort(int ncid, int varid, const size_t start[], const size_t
     int status = nc_put_vara_ushort(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": ncw_put_vara_ushort(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": ncw_put_vara_ushort(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -964,12 +991,12 @@ void ncw_put_vara_int(int ncid, int varid, const size_t start[], const size_t co
     int status = nc_put_vara_int(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": ncw_put_vara_int(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": ncw_put_vara_int(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -978,12 +1005,12 @@ void ncw_put_vara_uint(int ncid, int varid, const size_t start[], const size_t c
     int status = nc_put_vara_uint(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": ncw_put_vara_uint(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": ncw_put_vara_uint(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -992,12 +1019,12 @@ void ncw_put_vara_float(int ncid, int varid, const size_t start[], const size_t 
     int status = nc_put_vara_float(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": ncw_put_vara_float(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": ncw_put_vara_float(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -1006,12 +1033,12 @@ void ncw_put_vara_double(int ncid, int varid, const size_t start[], const size_t
     int status = nc_put_vara_double(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         int ndims = 0;
 
         ncw_inq_varname(ncid, varid, varname);
         ncw_inq_varndims(ncid, varid, &ndims);
-        quit("\"%s\": nc_put_vara_double(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, uint2str(ndims, (unsigned int*) start), uint2str(ndims, (unsigned int*) count), nc_strerror(status));
+        quit("\"%s\": nc_put_vara_double(): failed for varid = %d (varname = \"%s\"), start = %s, count = %s: %s", ncw_get_path(ncid), varid, varname, size_t2str(ndims, start), size_t2str(ndims, count), nc_strerror(status));
     }
 }
 
@@ -1020,7 +1047,7 @@ void ncw_get_vara(int ncid, int varid, const size_t start[], const size_t count[
     int status = nc_get_vara(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara(): failed for varid = %d (varname = \"%s\"): %s\n", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1032,7 +1059,7 @@ void ncw_get_vara_text(int ncid, int varid, const size_t start[], const size_t c
     int status = nc_get_vara_text(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_text(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1044,7 +1071,7 @@ void ncw_get_vara_short(int ncid, int varid, const size_t start[], const size_t 
     int status = nc_get_vara_short(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_short(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1056,7 +1083,7 @@ void ncw_get_vara_int(int ncid, int varid, const size_t start[], const size_t co
     int status = nc_get_vara_int(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_int(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1068,7 +1095,7 @@ void ncw_get_vara_float(int ncid, int varid, const size_t start[], const size_t 
     int status = nc_get_vara_float(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1085,7 +1112,7 @@ void ncw_get_vara_float_fixerange(int ncid, int varid, const size_t start[], con
 
     ncw_inq_vartype(ncid, varid, &type);
     if (status != NC_ERANGE || type != NC_DOUBLE) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_float(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1103,6 +1130,8 @@ void ncw_get_vara_float_fixerange(int ncid, int varid, const size_t start[], con
             size *= count[i];
 
         vv = malloc(size * sizeof(double));
+        if (vv == NULL)
+            quit("\"%s\": ncw_get_vara_float_fixerange(): could not allocate memory: %s", ncw_get_path(ncid), strerror(errno));
         ncw_get_vara_double(ncid, varid, start, count, vv);
         for (i = 0; i < size; ++i)
             if (!isfinite(vv[i]) || vv[i] < -FLT_MAX || vv[i] > FLT_MAX)
@@ -1118,7 +1147,7 @@ void ncw_get_vara_double(int ncid, int varid, const size_t start[], const size_t
     int status = nc_get_vara_double(ncid, varid, start, count, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_vara_double(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1130,7 +1159,7 @@ void ncw_put_att_text(int ncid, int varid, const char attname[], const char v[])
     int status = nc_put_att_text(ncid, varid, attname, strlen(v), v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_text(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, v, nc_strerror(status));
@@ -1142,7 +1171,7 @@ void ncw_put_att_uchar(int ncid, int varid, const char attname[], size_t len, co
     int status = nc_put_att_uchar(ncid, varid, attname, NC_UBYTE, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_uchar(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue(s) = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, uchar2str(len, v), nc_strerror(status));
@@ -1154,7 +1183,7 @@ void ncw_put_att_short(int ncid, int varid, const char attname[], size_t len, co
     int status = nc_put_att_short(ncid, varid, attname, NC_SHORT, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_short(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue(s) = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, short2str(len, v), nc_strerror(status));
@@ -1166,7 +1195,7 @@ void ncw_put_att_ushort(int ncid, int varid, const char attname[], size_t len, c
     int status = nc_put_att_ushort(ncid, varid, attname, NC_USHORT, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_ushort(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue(s) = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, ushort2str(len, v), nc_strerror(status));
@@ -1178,7 +1207,7 @@ void ncw_put_att_int(int ncid, int varid, const char attname[], size_t len, cons
     int status = nc_put_att_int(ncid, varid, attname, NC_INT, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_int(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue(s) = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, int2str(len, v), nc_strerror(status));
@@ -1190,7 +1219,7 @@ void ncw_put_att_long(int ncid, int varid, const char attname[], size_t len, con
     int status = nc_put_att_long(ncid, varid, attname, NC_INT, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_long(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue(s) = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, long2str(len, v), nc_strerror(status));
@@ -1202,7 +1231,7 @@ void ncw_put_att_float(int ncid, int varid, const char attname[], size_t len, co
     int status = nc_put_att_float(ncid, varid, attname, NC_FLOAT, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_float(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, float2str(len, v), nc_strerror(status));
@@ -1213,7 +1242,7 @@ void ncw_put_att_float(int ncid, int varid, const char attname[], size_t len, co
 
         ncw_inq_vartype(ncid, varid, &xtype);
         if (xtype != NC_FLOAT) {
-            char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+            char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
             ncw_inq_varname(ncid, varid, varname);
 
@@ -1227,7 +1256,7 @@ void ncw_put_att_double(int ncid, int varid, const char attname[], size_t len, c
     int status = nc_put_att_double(ncid, varid, attname, NC_DOUBLE, len, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_put_att_double(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", attvalue(s) = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, double2str(len, v), nc_strerror(status));
@@ -1238,7 +1267,7 @@ void ncw_put_att_double(int ncid, int varid, const char attname[], size_t len, c
 
         ncw_inq_vartype(ncid, varid, &xtype);
         if (xtype != NC_DOUBLE) {
-            char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+            char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
             ncw_inq_varname(ncid, varid, varname);
 
@@ -1252,7 +1281,7 @@ void ncw_inq_attname(int ncid, int varid, int attrid, char attname[])
     int status = nc_inq_attname(ncid, varid, attrid, attname);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_attname(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1264,10 +1293,10 @@ void ncw_inq_att(int ncid, int varid, const char attname[], nc_type* xtype, size
     int status = nc_inq_att(ncid, varid, attname, xtype, len);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
-        quit("\"%s\": nc_inq_att(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", atttype = %d: %s", ncw_get_path(ncid), varid, varname, attname, ncw_nctype2str(*xtype), nc_strerror(status));
+        quit("\"%s\": nc_inq_att(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
     }
 }
 
@@ -1276,7 +1305,7 @@ void ncw_inq_attlen(int ncid, int varid, const char attname[], size_t* len)
     int status = nc_inq_attlen(ncid, varid, attname, len);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_attlen(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1288,7 +1317,7 @@ void ncw_inq_atttype(int ncid, int varid, const char attname[], nc_type* xtype)
     int status = nc_inq_atttype(ncid, varid, attname, xtype);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_atttype(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1300,8 +1329,8 @@ void ncw_copy_att(int ncid_src, int varid_src, const char attname[], int ncid_ds
     int status = nc_copy_att(ncid_src, varid_src, attname, ncid_dst, varid_dst);
 
     if (status != NC_NOERR) {
-        char varname_src[NC_MAX_NAME] = STR_UNKNOWN;
-        char varname_dst[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname_src[NC_MAX_NAME + 1] = STR_UNKNOWN;
+        char varname_dst[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid_src, varid_src, varname_src);
         _ncw_inq_varname(ncid_dst, varid_dst, varname_dst);
@@ -1325,7 +1354,7 @@ void ncw_del_att(int ncid, int varid, const char attname[])
     int status = nc_del_att(ncid, varid, attname);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_del_att(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
@@ -1337,7 +1366,7 @@ void ncw_get_att(int ncid, int varid, const char attname[], void* v)
     int status = nc_get_att(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_att(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s\n", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1353,7 +1382,33 @@ void ncw_get_att_text(int ncid, int varid, const char attname[], char v[])
     status = nc_get_att_text(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
+
+        _ncw_inq_varname(ncid, varid, varname);
+        quit("\"%s\": nc_get_att_text(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
+    }
+    v[attlen] = 0;
+}
+
+/* Same as ncw_get_att_text(), but checks that the attribute (with the
+ * terminating NUL) fits into the buffer of the specified size.
+ */
+void ncw_get_att_text_n(int ncid, int varid, const char attname[], char v[], size_t size)
+{
+    size_t attlen = 0;
+    int status = -1;
+
+    ncw_inq_attlen(ncid, varid, attname, &attlen);
+    if (attlen >= size) {
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
+
+        _ncw_inq_varname(ncid, varid, varname);
+        quit("\"%s\": ncw_get_att_text_n(): varid = %d (varname = \"%s\"), attname = \"%s\": attribute length (%zu) exceeds the buffer size (%zu)", ncw_get_path(ncid), varid, varname, attname, attlen, size - 1);
+    }
+    status = nc_get_att_text(ncid, varid, attname, v);
+
+    if (status != NC_NOERR) {
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_att_text(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1366,7 +1421,7 @@ void ncw_get_att_schar(int ncid, int varid, const char attname[], signed char v[
     int status = nc_get_att_schar(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_att_schar(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1378,7 +1433,7 @@ void ncw_get_att_short(int ncid, int varid, const char attname[], short int v[])
     int status = nc_get_att_short(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_att_short(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1390,7 +1445,7 @@ void ncw_get_att_int(int ncid, int varid, const char attname[], int v[])
     int status = nc_get_att_int(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_att_int(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1402,7 +1457,7 @@ void ncw_get_att_uint(int ncid, int varid, const char attname[], unsigned int v[
     int status = nc_get_att_uint(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_get_att_uint(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1414,7 +1469,7 @@ void ncw_get_att_float(int ncid, int varid, const char attname[], float v[])
     int status = nc_get_att_float(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_get_att_float(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1426,7 +1481,7 @@ void ncw_get_att_double(int ncid, int varid, const char attname[], double v[])
     int status = nc_get_att_double(ncid, varid, attname, v);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_get_att_double(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
@@ -1508,7 +1563,7 @@ void ncw_copy_dims(int ncid_src, int ncid_dst)
     ncw_inq_unlimdim(ncid_src, &unlimdimid);
 
     for (i = 0; i < ndims; ++i) {
-        char dimname[NC_MAX_NAME] = STR_UNKNOWN;
+        char dimname[NC_MAX_NAME + 1] = STR_UNKNOWN;
         size_t size;
         int dimid;
 
@@ -1553,7 +1608,7 @@ void ncw_copy_dim(int ncid_src, const char dimname[], int ncid_dst)
 int ncw_copy_vardef(int ncid_src, int vid_src, int ncid_dst)
 {
     int unlimdimid_src = -1;
-    char varname[NC_MAX_NAME] = STR_UNKNOWN;
+    char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
     int vid_dst;
     nc_type type;
     int ndims;
@@ -1569,7 +1624,7 @@ int ncw_copy_vardef(int ncid_src, int vid_src, int ncid_dst)
     ncw_inq_var(ncid_src, vid_src, NULL, &type, &ndims, dimids_src, &natts);
 
     for (i = 0; i < ndims; ++i) {
-        char dimname[NC_MAX_NAME];
+        char dimname[NC_MAX_NAME + 1];
         size_t len;
 
         dimids_dst[i] = -1;
@@ -1656,6 +1711,7 @@ int ncw_copy_vardef(int ncid_src, int vid_src, int ncid_dst)
                 char fname_dst[STRBUFSIZE];
 
                 strncpy(fname_dst, ncw_get_path(ncid_dst), STRBUFSIZE - 1);
+                fname_dst[STRBUFSIZE - 1] = 0;
                 ncw_close(ncid_dst);    /* (to be able to examine the file) */
                 quit("\"%s\": ncw_copy_vardef(): technical problem while copying \"%s\" from \"%s\"\n", fname_dst, varname, ncw_get_path(ncid_src));
             }
@@ -1692,7 +1748,7 @@ int ncw_copy_vardef(int ncid_src, int vid_src, int ncid_dst)
  */
 void ncw_copy_vardata(int ncid_src, int vid_src, int ncid_dst)
 {
-    char varname[NC_MAX_NAME] = STR_UNKNOWN;
+    char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
     int ndims;
     size_t count[NC_MAX_DIMS];
     size_t start[NC_MAX_DIMS];
@@ -1717,6 +1773,8 @@ void ncw_copy_vardata(int ncid_src, int vid_src, int ncid_dst)
     ncw_inq_vartype(ncid_src, vid_src, &type);
     size *= ncw_sizeof(type);
     data = malloc(size);
+    if (data == NULL)
+        quit("\"%s\": ncw_copy_vardata(): could not allocate %zu bytes: %s", ncw_get_path(ncid_src), size, strerror(errno));
     ncw_get_var(ncid_src, vid_src, data);
     /*
      * nc_put_vara() is more reliable than nc_put_var() for record variables
@@ -1760,7 +1818,7 @@ void ncw_def_deflate(int ncid, int shuffle, int deflate, int deflate_level)
         int status = nc_def_var_deflate(ncid, vid, shuffle, deflate, deflate_level);
 
         if (status != NC_NOERR) {
-            char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+            char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
             _ncw_inq_varname(ncid, vid, varname);
             quit("\"%s\": ncw_def_deflate(): failed for \"%s\": %s", ncw_get_path(ncid), varname, nc_strerror(status));
@@ -1811,7 +1869,7 @@ void ncw_get_att_int2(int ncid, int varid, const char attname1[], const char att
         int status2 = nc_get_att_int(ncid, varid, attname2, v);
 
         if (status2 != NC_NOERR) {
-            char varname[NC_MAX_NAME] = STR_UNKNOWN;
+            char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
             _ncw_inq_varname(ncid, varid, varname);
             quit("\"%s\": nc_get_att_int(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s, and attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname1, nc_strerror(status1), attname2, nc_strerror(status2));
@@ -1821,10 +1879,10 @@ void ncw_get_att_int2(int ncid, int varid, const char attname1[], const char att
     ncw_inq_att(ncid, varid, (status1 == NC_NOERR) ? attname1 : attname2, &xtype, &len);
 
     if (xtype != NC_INT && xtype != NC_BYTE && xtype != NC_SHORT) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
-        quit("ncw_get_att_int2(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": the attribute is of %s type", ncw_get_path(ncid), varid, varname, (status1 == NC_NOERR) ? attname1 : attname2, ncw_nctype2str(xtype));
+        quit("\"%s\": ncw_get_att_int2(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": the attribute is of %s type", ncw_get_path(ncid), varid, varname, (status1 == NC_NOERR) ? attname1 : attname2, ncw_nctype2str(xtype));
     }
 }
 
@@ -1851,7 +1909,7 @@ void ncw_find_vars(int ncid, int ndims, const int dims[], const char attname[], 
     ncw_inq_nvars(ncid, &nv);
 
     for (vid = 0; vid < nv; ++vid) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
         nc_type vtype = -1;
         int nd = -1;
         int dids[NC_MAX_DIMS];
@@ -1861,9 +1919,8 @@ void ncw_find_vars(int ncid, int ndims, const int dims[], const char attname[], 
         /*
          * check if the dimensions are right for the variable
          */
+        ncw_inq_var(ncid, vid, varname, &vtype, &nd, dids, &natts);
         if (ndims > 0) {
-            ncw_inq_var(ncid, vid, varname, &vtype, &nd, dids, &natts);
-
             if (ndims != nd)
                 goto nextvar;   /* (not using "continue" to be consistent) */
 
@@ -1885,7 +1942,7 @@ void ncw_find_vars(int ncid, int ndims, const int dims[], const char attname[], 
          */
         if (attname != NULL) {
             for (i = 0; i < natts; ++i) {
-                char aname[NC_MAX_NAME] = STR_UNKNOWN;
+                char aname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
                 ncw_inq_attname(ncid, vid, i, aname);
 
@@ -1900,11 +1957,11 @@ void ncw_find_vars(int ncid, int ndims, const int dims[], const char attname[], 
                     ncw_inq_att(ncid, vid, aname, &atype, &alen);
                     if (alen <= 0)
                         continue;
-                    aval = calloc(alen, ncw_sizeof(atype));
+                    aval = calloc(alen + 1, ncw_sizeof(atype));
                     if (aval == NULL)
                         quit("\"%s\": ncw_find_vars(): could not allocate memory for attribute = \"%s\", type = %s, length = %zu, varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), aname, ncw_nctype2str(atype), alen, vid, (vid == NC_GLOBAL) ? "NC_GLOBAL" : varname, strerror(errno));
-                    ncw_get_att_text(ncid, vid, attname, aval);
-                    if (memcmp(attval, aval, alen * sizeof(atype)) == 0) {
+                    ncw_get_att(ncid, vid, attname, aval);
+                    if (memcmp(attval, aval, alen * ncw_sizeof(atype)) == 0) {
                         free(aval);
                         break;
                     }
@@ -1930,6 +1987,8 @@ void ncw_find_vars(int ncid, int ndims, const int dims[], const char attname[], 
             nallocated *= 2;
             *vids = realloc(*vids, nallocated * sizeof(int));
         }
+        if (*vids == NULL)
+            quit("\"%s\": ncw_find_vars(): could not allocate memory: %s", ncw_get_path(ncid), strerror(errno));
 
         (*vids)[*nvars] = vid;
         (*nvars)++;
@@ -1966,7 +2025,7 @@ void ncw_find_timevarid(int ncid, int* varid)
             return;
         }
     }
-    quit("\"%s\": ncw_find_timevar(): could not find any");
+    quit("\"%s\": ncw_find_timevarid(): could not find any", ncw_get_path(ncid));
 }
 
 /** Checks if specified attribute exists in the file.
@@ -2046,8 +2105,8 @@ int ncw_att_exists2(int ncid, int varid, const char attname[])
  */
 void ncw_copy_atts(int ncid_src, int varid_src, int ncid_dst, int varid_dst)
 {
-    char varname_src[NC_MAX_NAME] = STR_UNKNOWN;
-    char varname_dst[NC_MAX_NAME] = STR_UNKNOWN;
+    char varname_src[NC_MAX_NAME + 1] = STR_UNKNOWN;
+    char varname_dst[NC_MAX_NAME + 1] = STR_UNKNOWN;
     int status;
     int natts;
     int format;
@@ -2058,7 +2117,7 @@ void ncw_copy_atts(int ncid_src, int varid_src, int ncid_dst, int varid_dst)
     ncw_inq_varnatts(ncid_src, varid_src, &natts);
 
     for (i = 0; i < natts; ++i) {
-        char attname[NC_MAX_NAME] = STR_UNKNOWN;
+        char attname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         ncw_inq_attname(ncid_src, varid_src, i, attname);
         if ((status = nc_copy_att(ncid_src, varid_src, attname, ncid_dst, varid_dst)) != NC_NOERR)
@@ -2173,7 +2232,7 @@ void ncw_get_var_double_record(int ncid, int varid, int r, double v[])
     status = nc_get_vara_double(ncid, varid, start, dimlen, v);
 
     if (status != 0) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_get_var_double_record(): failed to read record (outer dim) %d for \"%s\": %s", ncw_get_path(ncid), r, varname, nc_strerror(status));
@@ -2203,7 +2262,7 @@ void ncw_get_var_float_record(int ncid, int varid, int r, float v[])
     status = nc_get_vara_float(ncid, varid, start, dimlen, v);
 
     if (status != 0) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_get_var_float_record(): failed to read record (outer dim) %d for \"%s\": %s", ncw_get_path(ncid), r, varname, nc_strerror(status));
@@ -2233,7 +2292,7 @@ void ncw_get_var_int_record(int ncid, int varid, int r, int v[])
     status = nc_get_vara_int(ncid, varid, start, dimlen, v);
 
     if (status != 0) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_get_var_int_record(): failed to read record (outer dim) %d for \"%s\": %s", ncw_get_path(ncid), r, varname, nc_strerror(status));
@@ -2263,7 +2322,7 @@ void ncw_put_var_double_record(int ncid, int varid, int r, double v[])
     status = nc_put_vara_double(ncid, varid, start, dimlen, v);
 
     if (status != 0) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_put_var_double_record(): failed to read record (outer dim) %d for \"%s\": %s", ncw_get_path(ncid), r, varname, nc_strerror(status));
@@ -2293,7 +2352,7 @@ void ncw_put_var_float_record(int ncid, int varid, int r, float v[])
     status = nc_put_vara_float(ncid, varid, start, dimlen, v);
 
     if (status != 0) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_put_var_float_record(): failed to read record (outer dim) %d for \"%s\": %s", ncw_get_path(ncid), r, varname, nc_strerror(status));
@@ -2323,7 +2382,7 @@ void ncw_put_var_int_record(int ncid, int varid, int r, int v[])
     status = nc_put_vara_int(ncid, varid, start, dimlen, v);
 
     if (status != 0) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_put_var_int_record(): failed to read record (outer dim) %d for \"%s\": %s", ncw_get_path(ncid), r, varname, nc_strerror(status));
@@ -2339,14 +2398,14 @@ void ncw_check_attlen(int ncid, int varid, const char attname[], size_t att_len)
     int status = nc_inq_att(ncid, varid, attname, &type, &len);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = STR_UNKNOWN;
+        char varname[NC_MAX_NAME + 1] = STR_UNKNOWN;
 
         _ncw_inq_varname(ncid, varid, varname);
-        quit("\"%s\": nc_inq_att(): failed for varid = %d (varname = \"%s\"), attname = \"%s\", atttype = %d: %s", ncw_get_path(ncid), varid, varname, attname, ncw_nctype2str(type), nc_strerror(status));
+        quit("\"%s\": nc_inq_att(): failed for varid = %d (varname = \"%s\"), attname = \"%s\": %s", ncw_get_path(ncid), varid, varname, attname, nc_strerror(status));
     }
 
     if (len != att_len)
-        quit("\"%s\": ncw_check_att(): attribute \"%s\" is supposed to have length %z; the actual length is %z", ncw_get_path(ncid), attname, att_len, len);
+        quit("\"%s\": ncw_check_att(): attribute \"%s\" is supposed to have length %zu; the actual length is %zu", ncw_get_path(ncid), attname, att_len, len);
 }
 
 /** Check that the dimension has certain length
@@ -2376,13 +2435,13 @@ void ncw_check_varndims(int ncid, int varid, int ndims)
     status = nc_inq_varndims(ncid, varid, &ndims_actual);
 
     if (status != NC_NOERR) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": nc_inq_varndims(): failed for varid = %d (varname = \"%s\"): %s", ncw_get_path(ncid), varid, varname, nc_strerror(status));
     }
     if (ndims_actual != ndims) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_check_varndims(): variable \"%s\" is supposed to have %d dimensions; it actually has %d dimensions", ncw_get_path(ncid), varname, ndims, ndims_actual);
@@ -2400,7 +2459,7 @@ void ncw_check_vardims(int ncid, int varid, int ndims, size_t dimlen[])
 
     ncw_inq_varndims(ncid, varid, &ndims_actual);
     if (ndims_actual != ndims) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_check_vardims(): variable \"%s\" is supposed to have %d dimensions; it actually has %d dimensions", ncw_get_path(ncid), varname, ndims, ndims_actual);
@@ -2411,8 +2470,8 @@ void ncw_check_vardims(int ncid, int varid, int ndims, size_t dimlen[])
 
         ncw_inq_dimlen(ncid, dimids[i], &dimlen_actual);
         if (dimlen[i] != dimlen_actual) {
-            char varname[NC_MAX_NAME] = "STR_UNKNOWN";
-            char dimname[NC_MAX_NAME] = "STR_UNKNOWN";
+            char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
+            char dimname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
             ncw_inq_varname(ncid, varid, varname);
             ncw_inq_dimname(ncid, dimids[i], dimname);
@@ -2461,7 +2520,7 @@ void ncw_check_varsize(int ncid, int varid, size_t size)
     }
 
     if (size_actual != size) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_check_varsize(): total size of variable \"%s\" is supposed to be %zu; its actual size is %zu", ncw_get_path(ncid), varname, size, size_actual);
@@ -2483,7 +2542,7 @@ void ncw_inq_vardims(int ncid, int varid, int maxndims, int* ndims_out, size_t d
 
     ncw_inq_varndims(ncid, varid, &ndims);
     if (ndims > maxndims) {
-        char varname[NC_MAX_NAME] = "STR_UNKNOWN";
+        char varname[NC_MAX_NAME + 1] = "STR_UNKNOWN";
 
         ncw_inq_varname(ncid, varid, varname);
         quit("\"%s\": ncw_inq_vardims(): number of dimensions for variable \"%s\" = %d exceeds maximal allowed number = %d", ncw_get_path(ncid), varname, ndims, maxndims);
@@ -2503,7 +2562,7 @@ int ncw_file_opens(const char fname[], int mode)
 {
     int ncid, status;
 
-    status = nc_open(fname, NC_NOWRITE, &ncid);
+    status = nc_open(fname, mode, &ncid);
     if (status == NC_NOERR) {
         ncw_close(ncid);
         return 1;

@@ -2,7 +2,7 @@
 MPISTATUS_NCAVE = MPI
 
 CC = gcc
-CFLAGS = -g  -Wall -pedantic -std=c99 -D_GNU_SOURCE -O2
+CFLAGS = -g  -Wall -pedantic -std=c99 -D_GNU_SOURCE #-O2
 
 INCS = -I $(HOME)/local/include -I common -I apps
 LIBNC = -lnetcdf -lhdf5 -lhdf5_hl
