@@ -316,7 +316,7 @@ static void getcvars(char* fname, int nvar, char** vars, int* ncvar, char*** cva
                 break;
         if (i < nvar)
             continue;
-        
+
         ncw_inq_vardims(ncid, vid, 4, &ndims, dimlen);
         if (ndims > 4)
             quit("%s: %s: do not know how to treat a %d-dimensional variable", fname, varname, ndims);

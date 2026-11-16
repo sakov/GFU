@@ -43,7 +43,7 @@
 #include "utils.h"
 
 #define PROGRAM_NAME "regrid_ll"
-#define PROGRAM_VERSION "0.15"
+#define PROGRAM_VERSION "0.16"
 
 #define VERBOSE_DEF 1
 #define DEG2RAD (M_PI / 180.0)
@@ -59,7 +59,7 @@
  */
 static void usage(int status)
 {
-    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-k k1 [k2]] [-d <level>] [-m] [-n] [-s] [-V <verblevel>]\n", PROGRAM_NAME);
+    printf("  Usage: %s -i <src> -o <dst> -v <varname> -gi <src grid> <lon> <lat> [<numlayers>] -go <dst grid> <lon> <lat> [<numlayers>] [-k k1 [k2]] [-b] [-d <level>] [-m] [-n] [-s] [-V <level>]\n", PROGRAM_NAME);
     printf("         %s -v\n", PROGRAM_NAME);
     printf("  Options:\n");
     printf("    -i <src> -- source file\n");
@@ -690,7 +690,7 @@ int main(int argc, char* argv[])
         double ll[2] = { xsrc[i], -ysrc[i] };
         double xyz[3];
 
-        if (!separate || ysrc[i] > 0.0) {
+        if (!separate || ysrc[i] >= 0.0) {
             ll2xyz(ll, xyz);
             xsrc_south[i] = xyz[0] / (1.0 - xyz[2]);
             ysrc_south[i] = xyz[1] / (1.0 - xyz[2]);
@@ -699,7 +699,7 @@ int main(int argc, char* argv[])
             ysrc_south[i] = NAN;
         }
 
-        if (!separate || ysrc[i] < 0.0) {
+        if (!separate || ysrc[i] <= 0.0) {
             ll[1] = ysrc[i];
             ll2xyz(ll, xyz);
             xsrc_north[i] = xyz[0] / (1.0 - xyz[2]);

@@ -1,3 +1,6 @@
+v0.42
+  PS 20260929
+  - REGRID_LL: included lat = 0 into both interpolators.
 v0.41
   PS 20260827
   - REGRID_LL: cosmetic changes.
