@@ -1,3 +1,7 @@
+v0.44
+  PS 2025118
+  -- Modified ncmask to handle multiple variables of the same 2D shape.
+  -- Modified ncutils.c.
 v0.43
   PS 20261116
   -- In ncutils.c consolidated typed read/write attribute handling and 2D slice
